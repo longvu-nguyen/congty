@@ -1,0 +1,2 @@
+﻿LibreOffice: None
+OLE streams: [['\x01CompObj'], ['\x05DocumentSummaryInformation'], ['\x05SummaryInformation'], ['1Table'], ['Data'], ['MsoDataStore', '×5ÇßU3É×ÁEÆÐÂZÊÇÌÜNØPA==', 'Item'], ['MsoDataStore', '×5ÇßU3É×ÁEÆÐÂZÊÇÌÜNØPA==', 'Properties'], ['WordDocument']]

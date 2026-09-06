@@ -1,0 +1,1756 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Kho Hàng Pro — Quản Lý Kho & Báo Giá</title>
+  <meta name="description"
+    content="Hệ thống quản lý kho hàng xuất nhập tồn theo serial, biên bản bàn giao, báo giá sản phẩm, đọc ảnh OCR" />
+
+  <!-- PWA & Mobile Web App Meta -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="app_logo.png?v=5.0" />
+  <link rel="shortcut icon" href="app_logo.png?v=5.0" />
+  <link rel="apple-touch-icon" href="app_logo.png?v=5.0" />
+  <meta name="theme-color" content="#2563eb" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Kho Hàng Pro" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=10.0" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://unpkg.com/docx@7.8.2/build/index.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+</head>
+
+<body>
+
+  <div class="app">
+
+    <!-- ═══════════════ MOBILE TOPBAR & OVERLAY ═══════════════ -->
+    <header class="mobile-topbar">
+      <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" aria-label="Menu">☰</button>
+      <div class="mobile-topbar-title">
+        <img src="app_logo.png?v=5.0" style="width:26px;height:26px;border-radius:6px;object-fit:cover" alt="Logo" />
+        <span class="mobile-topbar-name">Kho Hàng Pro</span>
+      </div>
+      <button class="mobile-pwa-btn" id="btn-pwa-top" onclick="promptPWAInstall()">📲 Cài App</button>
+    </header>
+
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeMobileSidebar()"></div>
+
+    <!-- ═══════════════ SIDEBAR ═══════════════ -->
+    <aside class="sidebar" id="app-sidebar">
+      <div class="sb-logo" id="sb-logo" onclick="handleLogoClick()" title="Bấm vào đây để Đăng nhập Quản Trị (Admin)">
+        <img src="app_logo.png?v=5.0"
+          style="width:40px;height:40px;border-radius:10px;box-shadow:0 4px 12px rgba(37,99,235,0.3);object-fit:cover;margin-bottom:4px"
+          alt="Logo Kho Hàng Pro" />
+        <h1>Kho Hàng Pro</h1>
+        <p>Xuất · Nhập · Báo Giá · BBGH</p>
+        <div class="sb-admin-hint" id="sb-logo-hint"><span>🔐 Admin Panel</span></div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-label">Tổng quan</div>
+        <div class="sb-item active" id="nav-dashboard" onclick="nav('dashboard')">
+          <span class="sb-icon">🏠</span><span>Dashboard</span>
+        </div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-label">Kho hàng</div>
+        <div class="sb-item" id="nav-inventory" onclick="nav('inventory')">
+          <span class="sb-icon">🏭</span><span>Kho (Tồn)</span>
+        </div>
+        <div class="sb-item" id="nav-products" onclick="nav('products')">
+          <span class="sb-icon">📦</span><span>Hàng hóa</span>
+        </div>
+        <div class="sb-item" id="nav-serials" onclick="nav('serials')">
+          <span class="sb-icon">🔢</span><span>Serial</span>
+        </div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-label">Xuất / Nhập kho</div>
+        <div class="sb-item" id="nav-import" onclick="nav('import')">
+          <span class="sb-icon">📥</span><span>Nhập kho</span>
+          <span class="sb-badge green">+</span>
+        </div>
+        <div class="sb-item" id="nav-export" onclick="nav('export')">
+          <span class="sb-icon">📤</span><span>Xuất kho</span>
+          <span class="sb-badge red">−</span>
+        </div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-label">Báo giá & Bàn giao</div>
+        <div class="sb-item" id="nav-quote" onclick="nav('quote')">
+          <span class="sb-icon">💰</span><span>Tạo Báo Giá</span>
+          <span class="sb-badge orange">BG</span>
+        </div>
+        <div class="sb-item" id="nav-bbgh" onclick="nav('bbgh')">
+          <span class="sb-icon">📄</span><span>Tạo BBGH</span>
+          <span class="sb-badge purple">BB</span>
+        </div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-label">Lịch sử & Danh mục</div>
+        <div class="sb-item" id="nav-all-history" onclick="nav('all-history')">
+          <span class="sb-icon">📋</span><span>Tất cả biên bản</span>
+        </div>
+        <div class="sb-item" id="nav-companies" onclick="nav('companies')">
+          <span class="sb-icon">🏢</span><span>Công ty</span>
+        </div>
+        <div class="sb-item" id="nav-employees" onclick="nav('employees')">
+          <span class="sb-icon">👥</span><span>Nhân viên</span>
+        </div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-label">Thủ Kho Chuyên Nghiệp</div>
+        <div class="sb-item" id="nav-reports" onclick="nav('reports')">
+          <span class="sb-icon">📊</span><span>Báo cáo XNT & Giá trị</span>
+          <span class="sb-badge blue">PRO</span>
+        </div>
+        <div class="sb-item" id="nav-barcode" onclick="nav('barcode')">
+          <span class="sb-icon">🖨️</span><span>In Tem Barcode & QR</span>
+          <span class="sb-badge green">TEM</span>
+        </div>
+        <div class="sb-item" id="nav-audit" onclick="nav('audit')">
+          <span class="sb-icon">🔍</span><span>Kiểm Kê Kho & Cân Bằng</span>
+          <span class="sb-badge orange">KK</span>
+        </div>
+        <div class="sb-item" id="nav-backup" onclick="nav('backup')">
+          <span class="sb-icon">💾</span><span>Sao lưu & Đám mây</span>
+          <span class="sb-badge green">CLOUD</span>
+        </div>
+      </div>
+
+      <div class="sb-section" id="sb-sec-admin" style="display:none">
+        <div class="sb-label" style="color:#dc2626">Quản trị hệ thống</div>
+        <div class="sb-item" id="nav-admin" onclick="nav('admin')">
+          <span class="sb-icon">🛡️</span><span>Trang Admin</span>
+          <span class="sb-badge red">VIP</span>
+        </div>
+      </div>
+
+      <div class="sb-footer">
+        <div class="sb-time" id="clock"></div>
+      </div>
+    </aside>
+
+    <!-- ═══════════════ MAIN ═══════════════ -->
+    <main class="main">
+
+      <!-- ─── DASHBOARD ─── -->
+      <div class="page active" id="page-dashboard">
+        <div class="ph">
+          <div>
+            <div class="ph-title">📊 Dashboard Tổng Quan</div>
+            <div class="ph-sub">Theo dõi kho hàng, báo giá và biên bản theo thời gian thực</div>
+          </div>
+          <div class="ph-actions">
+            <button class="btn btn-ghost btn-sm" onclick="nav('all-history')">📋 Tất cả biên bản & Báo giá</button>
+          </div>
+        </div>
+        <div class="pb">
+          <!-- Quick Actions Bar -->
+          <div class="card mb3" style="background:#ffffff;border:1px solid #e2e8f0;box-shadow:var(--shadow-xs)">
+            <div class="card-bd" style="padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+              <div class="flex ic gap2">
+                <span style="font-size:14px;font-weight:800;color:var(--text1)">⚡ Thao Tác Nhanh:</span>
+                <span class="fs12 c3">Lập phiếu kho & báo giá trong 1-click</span>
+              </div>
+              <div class="flex ic gap2 flex-wrap">
+                <button class="btn btn-success btn-sm" onclick="nav('import')">📥 Nhập Kho OCR</button>
+                <button class="btn btn-warning btn-sm" onclick="nav('export')">📤 Phiếu Xuất Kho</button>
+                <button class="btn btn-primary btn-sm" onclick="nav('quote')">💰 Báo Giá Mới</button>
+                <button class="btn btn-purple btn-sm" onclick="nav('bbgh')">🚚 Biên Bản BBGH</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="stats">
+            <div class="stat c-blue"><span class="stat-icon">📦</span>
+              <div class="stat-val" id="d-products">—</div>
+              <div class="stat-lbl">Loại hàng hóa</div>
+            </div>
+            <div class="stat c-green"><span class="stat-icon">✅</span>
+              <div class="stat-val" id="d-instock">—</div>
+              <div class="stat-lbl">Serial trong kho</div>
+            </div>
+            <div class="stat c-red"><span class="stat-icon">📤</span>
+              <div class="stat-val" id="d-exported">—</div>
+              <div class="stat-lbl">Serial đã xuất</div>
+            </div>
+            <div class="stat c-purple"><span class="stat-icon">📋</span>
+              <div class="stat-val" id="d-docs">—</div>
+              <div class="stat-lbl">Tổng biên bản & BG</div>
+            </div>
+          </div>
+          <div id="d-main-sections" class="mb3"></div>
+          <div class="card">
+            <div class="card-hd">
+              <span class="card-hd-title">🕐 Chứng từ & Báo giá gần đây</span>
+              <button class="btn btn-ghost btn-sm" onclick="nav('all-history')">Xem tất cả →</button>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Loại</th>
+                    <th>Số chứng từ</th>
+                    <th>Ngày</th>
+                    <th>Đối tác / Khách hàng</th>
+                    <th>Chi tiết / Trị giá</th>
+                  </tr>
+                </thead>
+                <tbody id="d-recent">
+                  <tr>
+                    <td colspan="5" class="tc c3" style="padding:28px">Đang tải...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── INVENTORY (Hàng trong kho) ─── -->
+      <div class="page" id="page-inventory">
+        <div class="ph">
+          <div>
+            <div class="ph-title">🏭 Hàng Trong Kho</div>
+            <div class="ph-sub">Danh sách các sản phẩm đang có sẵn theo tầng & loại máy · <span id="inv-count"
+                class="c3"></span></div>
+          </div>
+        </div>
+        <div class="pb">
+          <!-- Summary Cards by Floor & Category -->
+          <div id="inv-summary-bar" class="inv-summary-bar"></div>
+
+          <!-- Toolbar with Filters -->
+          <div class="toolbar flex-wrap">
+            <div class="search-wrap" style="min-width:220px"><span class="search-ico">🔍</span><input type="text"
+                id="inv-search" placeholder="Tìm tên, mã hàng..." oninput="renderInventory()" /></div>
+
+            <div class="flex ic gap2 flex-wrap">
+              <select class="fs" id="inv-cat-filter" onchange="renderInventory()" style="width:auto">
+                <option value="all">📦 Tất cả loại máy</option>
+                <option value="Máy in & Máy quét">🖨️ Máy in & Máy quét</option>
+                <option value="Mực in & Vật tư">🧪 Mực in & Vật tư</option>
+                <option value="Màn hình">🖥️ Màn hình</option>
+                <option value="Máy tính & PC">💻 Máy tính & PC</option>
+                <option value="Phím chuột & Linh kiện">⌨️ Phím chuột & Linh kiện</option>
+                <option value="Camera & Thiết bị mạng">🎥 Camera & Mạng</option>
+              </select>
+
+              <select class="fs" id="inv-brand-filter" onchange="renderInventory()" style="width:auto">
+                <option value="all">🏷️ Tất cả hãng</option>
+              </select>
+
+              <select class="fs" id="inv-floor-filter" onchange="renderInventory()" style="width:auto">
+                <option value="all">🏢 Tất cả tầng</option>
+                <option value="Tầng 1">🏢 Tầng 1</option>
+                <option value="Tầng 2">🏢 Tầng 2</option>
+                <option value="Tầng 3">🏢 Tầng 3</option>
+                <option value="Tầng 4">🏢 Tầng 4</option>
+              </select>
+
+              <select class="fs" id="inv-sort" onchange="renderInventory()" style="width:auto">
+                <option value="name">Tên A→Z</option>
+                <option value="code">Mã hàng</option>
+                <option value="stock">Tồn kho ↓</option>
+                <option value="floor">Vị trí tầng ↑</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Mã hàng</th>
+                  <th>Tên hàng</th>
+                  <th>ĐVT</th>
+                  <th>Hãng & Loại</th>
+                  <th>Vị trí (Tầng)</th>
+                  <th>Còn kho</th>
+                  <th>Đã xuất</th>
+                  <th>Tổng SN</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="inv-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── PRODUCTS ─── -->
+      <div class="page" id="page-products">
+        <div class="ph">
+          <div>
+            <div class="ph-title">📦 Danh Sách Hàng Hóa</div>
+            <div class="ph-sub">Click tên hàng để xem serial · <span id="p-count" class="c3"></span></div>
+          </div>
+        </div>
+        <div class="pb">
+          <div class="toolbar">
+            <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" id="p-search"
+                placeholder="Tìm tên, mã hàng..." oninput="renderProducts()" /></div>
+            <select class="fs" id="p-filter" onchange="renderProducts()" style="width:auto;margin-right:8px">
+              <option value="all">Tất cả hàng hóa</option>
+              <option value="instock">Còn tồn kho</option>
+              <option value="outofstock">Hết hàng</option>
+            </select>
+            <select class="fs" id="p-sort" onchange="renderProducts()" style="width:auto">
+              <option value="name">Tên A→Z</option>
+              <option value="code">Mã hàng</option>
+              <option value="stock">Tồn kho ↓</option>
+              <option value="exported">Đã xuất ↓</option>
+            </select>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Mã hàng</th>
+                  <th>Tên hàng</th>
+                  <th>ĐVT</th>
+                  <th>Còn kho</th>
+                  <th>Đã xuất</th>
+                  <th>Tổng SN</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="p-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── SERIALS ─── -->
+      <div class="page" id="page-serials">
+        <div class="ph">
+          <div>
+            <div class="ph-title">🔢 Quản Lý Serial</div>
+            <div class="ph-sub"><span id="sr-count" class="c3"></span></div>
+          </div>
+        </div>
+        <div class="pb">
+          <div class="toolbar">
+            <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" id="sr-search"
+                placeholder="Tìm serial..." oninput="renderSerials()" /></div>
+            <select class="fs" id="sr-product" onchange="renderSerials()" style="width:auto;max-width:280px">
+              <option value="">Tất cả sản phẩm</option>
+            </select>
+            <select class="fs" id="sr-status" onchange="renderSerials()" style="width:auto">
+              <option value="all">Tất cả</option>
+              <option value="in-stock">Trong kho</option>
+              <option value="exported">Đã xuất</option>
+            </select>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="tc">Số Serial</th>
+                  <th>Mã hàng</th>
+                  <th>Tên hàng</th>
+                  <th>Trạng thái</th>
+                  <th>Ngày nhập</th>
+                  <th>Xuất cho / Ngày</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="sr-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── DATALIST CHO TỰ ĐỘNG ĐIỀN ─── -->
+      <datalist id="dl-companies"></datalist>
+      <datalist id="dl-employees"></datalist>
+
+      <!-- ─── IMPORT ─── -->
+      <div class="page" id="page-import">
+        <div class="ph">
+          <div>
+            <div class="ph-title">📥 Biên Bản Nhập Kho</div>
+            <div class="ph-sub">2 cách nhập serial: <strong class="cp">① Quét ảnh biên bản (OCR)</strong> hoặc
+              <strong class="cg">② Quét/gõ từng mã Serial</strong> · Xác nhận → Serial <strong class="cg">cộng vào
+                kho</strong>
+            </div>
+          </div>
+        </div>
+        <div class="pb" style="display:grid;grid-template-columns:340px 1fr;gap:22px;align-items:start">
+          <!-- Form trái -->
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="card card-pad">
+              <div class="sec-label mb3">📋 Thông tin biên bản</div>
+              <div class="fg"><label class="flabel">Ngày nhập <span class="req">*</span></label><input type="date"
+                  class="fi" id="imp-date" /></div>
+              <div class="fg"><label class="flabel">Ghi chú</label><textarea class="fta" id="imp-note" rows="3"
+                  placeholder="Ghi chú nhập kho..."></textarea></div>
+            </div>
+
+            <!-- OCR Box -->
+            <div class="card" style="border-color:rgba(139,92,246,0.3)">
+              <div class="card-hd"><span class="card-hd-title" style="color:#7c3aed">📸 Đọc Ảnh Biên Bản (OCR)</span>
+              </div>
+              <div class="card-pad">
+                <span class="method-tag m1">① Phương thức 1 — Quét ảnh</span>
+                <p class="fs12 c3 mb3">Upload ảnh biên bản nhập — OCR tự nhận dạng serial, tên công ty, người nhận</p>
+
+                <div class="ocr-mini">
+                  <div class="ocr-mini-hd">🖼️ Chọn ảnh biên bản nhập kho</div>
+                  <div class="ocr-mini-actions">
+                    <label class="btn btn-purple btn-sm" style="cursor:pointer">
+                      📁 Chọn ảnh
+                      <input type="file" accept="image/*" id="imp-ocr-file"
+                        onchange="handleOcrUpload(this,'import','imp-ocr-result','imp-ocr-prog','imp-ocr-preview')" />
+                    </label>
+                    <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+                      📷 Chụp ảnh
+                      <input type="file" accept="image/*" capture="environment"
+                        onchange="handleOcrUpload(this,'import','imp-ocr-result','imp-ocr-prog','imp-ocr-preview')" />
+                    </label>
+                  </div>
+                  <img id="imp-ocr-preview" class="ocr-mini-preview" src="" alt="preview" />
+                </div>
+
+                <div id="imp-ocr-prog-wrap" style="display:none">
+                  <div class="flex ic jb mb2 fs12 c3"><span>Đang nhận dạng OCR...</span></div>
+                  <div class="ocr-bar">
+                    <div class="ocr-fill" id="imp-ocr-prog"></div>
+                  </div>
+                </div>
+
+                <div id="imp-ocr-result"></div>
+              </div>
+            </div>
+
+            <button class="btn btn-success w-full" onclick="submitImport()" style="font-size:14px;padding:13px">✅ Xác
+              nhận nhập kho</button>
+            <p class="fs12 c3 tc">Serial được xác nhận → tự động <strong class="cg">cộng vào tồn kho</strong></p>
+          </div>
+
+          <!-- Phải: Danh sách hàng -->
+          <div>
+            <div class="flex ic jb mb3">
+              <div>
+                <span class="method-tag m2" style="display:block;width:fit-content;margin-bottom:4px">② Phương thức 2
+                  — Quét Serial</span>
+                <span class="fw7" style="font-size:15px">Danh sách hàng hóa nhập</span>
+              </div>
+              <button class="btn btn-primary" onclick="openAddImportProduct()">➕ Thêm sản phẩm</button>
+            </div>
+            <p class="fs12 c3 mb3">Chọn sản phẩm → đưa con trỏ vào ô "Quét mã Serial" bên dưới mỗi sản phẩm → quét
+              bằng máy quét (hoặc gõ tay) rồi nhấn <strong>Enter</strong> sau mỗi mã.</p>
+            <div id="imp-items"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── EXPORT ─── -->
+      <div class="page" id="page-export">
+        <div class="ph">
+          <div>
+            <div class="ph-title">📤 Biên Bản Xuất Kho</div>
+            <div class="ph-sub">2 cách nhập serial: <strong class="cp">① Quét ảnh biên bản (OCR)</strong> hoặc
+              <strong class="co">② Quét/gõ từng mã Serial</strong> · Xác nhận → Serial <strong class="cr">trừ khỏi
+                kho</strong>
+            </div>
+          </div>
+        </div>
+        <div class="pb" style="display:grid;grid-template-columns:340px 1fr;gap:22px;align-items:start">
+          <!-- Form trái -->
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="card card-pad">
+              <div class="sec-label mb3">📋 Thông tin biên bản</div>
+              <div class="fg"><label class="flabel">Ngày xuất <span class="req">*</span></label><input type="date"
+                  class="fi" id="exp-date" /></div>
+              <div class="fg"><label class="flabel">Xuất cho bên <span class="req">*</span></label><input type="text"
+                  class="fi" id="exp-to" list="dl-companies" autocomplete="off" placeholder="Tên đơn vị nhận hàng..." />
+              </div>
+              <div class="fg"><label class="flabel">Người nhận</label><input type="text" class="fi" id="exp-recv"
+                  list="dl-employees" autocomplete="off" placeholder="Họ tên người nhận" /></div>
+              <div class="fg"><label class="flabel">Người giao (thủ kho)</label><input type="text" class="fi"
+                  id="exp-sign" list="dl-employees" autocomplete="off" placeholder="Họ tên thủ kho" /></div>
+              <div class="fg"><label class="flabel">Ghi chú</label><textarea class="fta" id="exp-note" rows="2"
+                  placeholder="Ghi chú..."></textarea></div>
+            </div>
+
+            <!-- OCR Box -->
+            <div class="card" style="border-color:rgba(249,115,22,0.3)">
+              <div class="card-hd"><span class="card-hd-title" style="color:#ea580c">📸 Đọc Ảnh Biên Bản (OCR)</span>
+              </div>
+              <div class="card-pad">
+                <span class="method-tag m1">① Phương thức 1 — Quét ảnh</span>
+                <p class="fs12 c3 mb3">Upload ảnh biên bản xuất — OCR tự nhận dạng serial, bên nhận, người lấy hàng</p>
+
+                <div class="ocr-mini" style="border-color:rgba(249,115,22,0.3);background:#fff7ed">
+                  <div class="ocr-mini-hd" style="color:#ea580c">🖼️ Chọn ảnh biên bản xuất kho</div>
+                  <div class="ocr-mini-actions">
+                    <label class="btn btn-orange btn-sm" style="cursor:pointer">
+                      📁 Chọn ảnh
+                      <input type="file" accept="image/*" id="exp-ocr-file"
+                        onchange="handleOcrUpload(this,'export','exp-ocr-result','exp-ocr-prog','exp-ocr-preview')" />
+                    </label>
+                    <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+                      📷 Chụp ảnh
+                      <input type="file" accept="image/*" capture="environment"
+                        onchange="handleOcrUpload(this,'export','exp-ocr-result','exp-ocr-prog','exp-ocr-preview')" />
+                    </label>
+                  </div>
+                  <img id="exp-ocr-preview" class="ocr-mini-preview" src="" alt="preview" />
+                </div>
+
+                <div id="exp-ocr-prog-wrap" style="display:none">
+                  <div class="flex ic jb mb2 fs12 c3"><span>Đang nhận dạng OCR...</span></div>
+                  <div class="ocr-bar">
+                    <div class="ocr-fill" id="exp-ocr-prog"></div>
+                  </div>
+                </div>
+
+                <div id="exp-ocr-result"></div>
+              </div>
+            </div>
+
+            <button class="btn btn-orange w-full" onclick="submitExport()" style="font-size:14px;padding:13px">📤 Xác
+              nhận xuất kho</button>
+            <p class="fs12 c3 tc">Serial được xác nhận → tự động <strong class="cr">trừ khỏi tồn kho</strong></p>
+          </div>
+
+          <!-- Phải -->
+          <div>
+            <div class="flex ic jb mb3">
+              <div>
+                <span class="method-tag m2" style="display:block;width:fit-content;margin-bottom:4px">② Phương thức 2
+                  — Quét Serial</span>
+                <span class="fw7" style="font-size:15px">Danh sách hàng hóa xuất</span>
+              </div>
+              <button class="btn btn-primary" onclick="openAddExportProduct()">➕ Thêm sản phẩm</button>
+            </div>
+            <p class="fs12 c3 mb3">Quét bằng máy quét (hoặc gõ tay) vào ô "Quét mã Serial", nhấn <strong>Enter</strong>
+              sau mỗi mã — hoặc bấm chọn trực tiếp từ danh sách serial còn trong kho.</p>
+            <div id="exp-items"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── QUOTATION (BÁO GIÁ SẢN PHẨM CHUẨN MẪU THUẬN PHÁT) ─── -->
+      <div class="page" id="page-quote">
+        <div class="ph">
+          <div>
+            <div class="ph-title">💰 Bảng Báo Giá Thuận Phát</div>
+            <div class="ph-sub">Trình bày chuẩn mẫu Excel công ty · Tự động tính Thành tiền, Thuế VAT & Số tiền bằng chữ
+            </div>
+          </div>
+          <div class="ph-actions">
+            <button class="btn btn-ghost btn-sm" onclick="nav('all-history')">📋 Lịch sử báo giá</button>
+          </div>
+        </div>
+        <div class="pb">
+
+          <!-- Thanh thao tác nhanh -->
+          <div class="qs-actions-bar">
+            <div class="flex ic gap2 flex-wrap">
+              <button class="btn btn-primary btn-sm" onclick="openAddQuoteProduct()">➕ Thêm SP từ kho</button>
+              <button class="btn btn-ghost btn-sm" onclick="addCustomQuoteItem()">➕ Thêm dòng mới</button>
+              <div class="flex ic gap2" style="margin-left:8px">
+                <span class="fs12 fw7 c3">Thuế VAT:</span>
+                <div class="tax-btn-group">
+                  <button class="tax-btn" id="tax-btn-0" onclick="setQuoteTax(0)">0% (K.Thuế)</button>
+                  <button class="tax-btn" id="tax-btn-8" onclick="setQuoteTax(8)">8%</button>
+                  <button class="tax-btn active" id="tax-btn-10" onclick="setQuoteTax(10)">10%</button>
+                </div>
+                <div class="flex ic gap1">
+                  <input type="number" min="0" max="100" class="fi" id="quote-custom-tax"
+                    style="width:60px;padding:3px 6px;height:28px;font-weight:700;font-size:12px" value="10"
+                    oninput="onCustomTaxInput(this.value)" />
+                  <span class="fw7 fs11">%</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex ic gap2 flex-wrap">
+              <button class="btn btn-primary" onclick="submitQuote()">💾 Lưu Báo Giá</button>
+              <button class="btn btn-ghost" onclick="printCurrentQuote()">🖨️ In Báo Giá</button>
+              <button class="btn btn-success" onclick="exportCurrentQuoteExcel()">📊 Xuất File Excel (.xlsx)</button>
+              <button class="btn btn-purple" onclick="exportCurrentQuoteWord()">📄 Xuất Word (.docx)</button>
+            </div>
+          </div>
+
+          <!-- TỜ BÁO GIÁ CHUẨN THUẬN PHÁT (MẪU EXCEL) -->
+          <div class="quote-sheet-wrapper">
+            <div class="quote-sheet" id="quote-sheet-content">
+
+              <!-- Header: Logo Thuận Phát kéo ngang chuẩn file mẫu (không dùng chữ) -->
+              <div class="qs-header">
+                <div class="qs-logo-wrap">
+                  <img src="logo_thuanphat.png" class="qs-logo" alt="THUẬN PHÁT" />
+                </div>
+              </div>
+
+              <!-- Ngày tháng (bên phải, in nghiêng) -->
+              <div class="qs-date-line">
+                <span>Hà Nội, Ngày </span>
+                <input type="number" id="qs-day" min="1" max="31" value="18"
+                  style="width:34px;border:none;border-bottom:1px dashed #999;text-align:center;font-style:italic;font-family:'Times New Roman',serif;font-size:12.5pt;background:transparent;outline:none;"
+                  oninput="onQuoteDatePartChange()" />
+                <span> tháng </span>
+                <input type="number" id="qs-month" min="1" max="12" value="08"
+                  style="width:34px;border:none;border-bottom:1px dashed #999;text-align:center;font-style:italic;font-family:'Times New Roman',serif;font-size:12.5pt;background:transparent;outline:none;"
+                  oninput="onQuoteDatePartChange()" />
+                <span> năm </span>
+                <input type="number" id="qs-year" min="2020" max="2035" value="2026"
+                  style="width:52px;border:none;border-bottom:1px dashed #999;text-align:center;font-style:italic;font-family:'Times New Roman',serif;font-size:12.5pt;background:transparent;outline:none;"
+                  oninput="onQuoteDatePartChange()" />
+              </div>
+
+              <!-- Tiêu đề BÁO GIÁ -->
+              <div class="qs-title">BÁO GIÁ</div>
+
+              <!-- Lời chào & Khách hàng -->
+              <div class="qs-greeting">
+                <div class="qs-greeting-bold" style="display:flex;align-items:baseline;gap:6px">
+                  <span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Kính gửi:</span>
+                  <input type="text" id="quote-buyer-name" list="dl-companies" class="qs-notes-input"
+                    style="font-weight:bold;font-style:normal;font-size:12.5pt;border-bottom:1px dashed #999;flex:1"
+                    value="Quý khách hàng" placeholder="Quý khách hàng / Tên đối tác..."
+                    oninput="onQuoteBuyerNameChange(this.value)" />
+                </div>
+                <div class="qs-greeting-italic" style="margin-top:4px">
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Trân trọng cảm ơn quý khách hàng đã quan tâm đến
+                  sản phẩm và dịch vụ của chúng tôi. Công ty TNHH Thương Mại Đầu tư và Sản xuất Thuận Phát xin gửi tới
+                  Quý khách bảng báo giá sản phẩm như sau :
+                </div>
+              </div>
+
+              <!-- BẢNG BÁO GIÁ KẺ Ô CHUẨN FILE MẪU -->
+              <table class="qs-table">
+                <thead>
+                  <tr>
+                    <th style="width:40px">STT</th>
+                    <th style="min-width:320px">SẢN PHẨM</th>
+                    <th style="width:95px">Model</th>
+                    <th style="width:95px">Hãng</th>
+                    <th style="width:75px">ĐVT</th>
+                    <th style="width:55px">SL</th>
+                    <th style="width:125px">Đơn giá</th>
+                    <th style="width:145px">Thành tiền</th>
+                    <th style="width:28px" class="no-print"></th>
+                  </tr>
+                </thead>
+                <tbody id="quote-items-tbody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+                <tfoot>
+                  <tr class="qs-summary-row">
+                    <td colspan="7" style="text-align:right;font-weight:bold">TỔNG CỘNG TRƯỚC THUẾ:</td>
+                    <td style="text-align:right;font-weight:bold" id="qs-subtotal-val">0</td>
+                    <td class="no-print"></td>
+                  </tr>
+                  <tr class="qs-summary-row">
+                    <td colspan="7" style="text-align:right;font-weight:bold">THUẾ <span
+                        id="qs-tax-pct-label">10%</span>:</td>
+                    <td style="text-align:right;font-weight:bold" id="qs-tax-val">0</td>
+                    <td class="no-print"></td>
+                  </tr>
+                  <tr class="qs-summary-row">
+                    <td colspan="7" style="text-align:right;font-weight:bold">TỔNG TIỀN SAU THUẾ</td>
+                    <td style="text-align:right;font-weight:bold" id="qs-grand-val">0</td>
+                    <td class="no-print"></td>
+                  </tr>
+                  <tr class="qs-words-row">
+                    <td colspan="8" style="text-align:center">
+                      Bằng chữ: <span id="qs-words-val">Không đồng./.</span>
+                    </td>
+                    <td class="no-print"></td>
+                  </tr>
+                </tfoot>
+              </table>
+
+              <!-- GHI CHÚ BÊN DƯỚI BẢNG -->
+              <div class="qs-notes">
+                <div class="qs-notes-title">Ghi chú:</div>
+                <div class="qs-notes-item">
+                  <span>- Giá trên <span id="qs-note-tax">đã bao gồm VAT 10%</span></span>
+                </div>
+                <div class="qs-notes-item">
+                  <span>- Tình trạng hàng hóa:</span>
+                  <input type="text" class="qs-notes-input" id="qs-note-condition"
+                    value="hàng mới 100% chưa qua sử dụng" />
+                </div>
+                <div class="qs-notes-item">
+                  <span>- Thời gian giao hàng:</span>
+                  <input type="text" class="qs-notes-input" id="qs-note-delivery" value=""
+                    placeholder="Ví dụ: Trong vòng 1 - 3 ngày làm việc" />
+                </div>
+                <div class="qs-notes-item">
+                  <span>- Địa điểm:</span>
+                  <input type="text" class="qs-notes-input" id="qs-note-location" value=""
+                    placeholder="Ví dụ: Tại địa chỉ bên mua" />
+                </div>
+                <div class="qs-notes-item">
+                  <span>- Hiệu lực của báo giá:</span>
+                  <input type="text" class="qs-notes-input" id="qs-note-validity"
+                    value="trong vòng 20 ngày kể từ ngày phát hành báo giá." />
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ─── ALL HISTORY (Hợp nhất) ─── -->
+      <div class="page" id="page-all-history">
+        <div class="ph">
+          <div>
+            <div class="ph-title">📋 Tất Cả Biên Bản & Báo Giá</div>
+            <div class="ph-sub">Lịch sử đầy đủ: Nhập kho · Xuất kho · Báo giá · Bàn giao — <span id="ah-count"
+                class="c3"></span>
+            </div>
+          </div>
+          <div class="ph-actions">
+            <button class="btn btn-amber btn-sm" onclick="nav('quote')">💰 Tạo Báo giá</button>
+            <button class="btn btn-success btn-sm" onclick="nav('import')">📥 Nhập kho</button>
+            <button class="btn btn-orange btn-sm" onclick="nav('export')">📤 Xuất kho</button>
+            <button class="btn btn-purple btn-sm" onclick="nav('bbgh')">📄 Tạo BBGH</button>
+          </div>
+        </div>
+        <div class="pb">
+          <div id="ah-stats"></div>
+
+          <div class="toolbar">
+            <div class="search-wrap"><span class="search-ico">🔍</span>
+              <input type="text" id="ah-q" placeholder="Tìm số chứng từ, công ty, khách hàng..."
+                oninput="renderAllHistory()" />
+            </div>
+            <select class="fs" id="ah-type" onchange="renderAllHistory()" style="width:auto">
+              <option value="all">🔀 Tất cả loại</option>
+              <option value="quote">💰 Báo giá</option>
+              <option value="import">📥 Nhập kho</option>
+              <option value="export">📤 Xuất kho</option>
+              <option value="bbgh">📋 Bàn giao</option>
+            </select>
+            <input type="date" class="fi" id="ah-from" onchange="renderAllHistory()" style="width:auto"
+              title="Từ ngày" />
+            <span class="c3 fs12">→</span>
+            <input type="date" class="fi" id="ah-to" onchange="renderAllHistory()" style="width:auto"
+              title="Đến ngày" />
+          </div>
+
+          <div id="ah-list"></div>
+        </div>
+      </div>
+
+      <!-- ─── BBGH FORM ─── -->
+      <div class="page" id="page-bbgh">
+        <div class="ph">
+          <div>
+            <div class="ph-title">📄 Tạo Biên Bản Bàn Giao</div>
+            <div class="ph-sub">Đúng mẫu BBGH — chọn công ty tự điền · Chọn nhân viên tự hiện chức vụ</div>
+          </div>
+          <div class="ph-actions">
+            <button class="btn btn-ghost btn-sm" onclick="nav('all-history')">📋 Lịch sử</button>
+          </div>
+        </div>
+        <div class="pb" style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start">
+
+          <!-- Trái: Thông tin 2 bên -->
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div class="card card-pad">
+              <div class="sec-label mb3">📋 Thông tin biên bản</div>
+              <div class="frow">
+                <div class="fg"><label class="flabel">Số biên bản</label><input type="text" class="fi" id="bbgh-num"
+                    placeholder="Tự động nếu để trống" /></div>
+                <div class="fg"><label class="flabel">Ngày <span class="req">*</span></label><input type="date"
+                    class="fi" id="bbgh-date" /></div>
+              </div>
+              <div class="fg"><label class="flabel">Ghi chú</label><textarea class="fta" id="bbgh-note" rows="2"
+                  placeholder="Ghi chú thêm..."></textarea></div>
+            </div>
+
+            <div class="party-box" style="border-top: 3.5px solid #ea580c">
+              <div class="party-box-hd" style="color:#ea580c">🏭 BÊN BÁN (Bên A)</div>
+              <div class="fg"><label class="flabel">Chọn công ty <span class="req">*</span></label>
+                <select class="fs" id="bbgh-seller" onchange="onBbghSellerChange()">
+                  <option value="">-- Chọn bên bán --</option>
+                </select>
+              </div>
+              <div class="fg"><label class="flabel">Địa chỉ</label><textarea class="fta" id="bbgh-seller-addr"
+                  rows="2"></textarea></div>
+              <div class="frow">
+                <div class="fg"><label class="flabel">SĐT</label><input type="text" class="fi" id="bbgh-seller-phone" />
+                </div>
+                <div class="fg"><label class="flabel">MST</label><input type="text" class="fi" id="bbgh-seller-tax" />
+                </div>
+              </div>
+              <div class="fg"><label class="flabel">Người đại diện (chọn nhân viên)</label>
+                <select class="fs" id="bbgh-seller-rep" onchange="onBbghRepChange()" style="margin-bottom:8px">
+                  <option value="">-- Chọn nhân viên --</option>
+                </select>
+                <input type="text" class="fi" id="bbgh-seller-repname" placeholder="Hoặc nhập tên tự do..." />
+              </div>
+              <div class="fg"><label class="flabel">Chức vụ</label><input type="text" class="fi" id="bbgh-seller-reppos"
+                  placeholder="Tự động khi chọn nhân viên" /></div>
+            </div>
+
+            <div class="party-box" style="border-top: 3.5px solid #0284c7">
+              <div class="party-box-hd" style="color:#0284c7">🛒 BÊN MUA (Bên B)</div>
+              <div class="fg"><label class="flabel">Chọn công ty <span class="req">*</span></label>
+                <select class="fs" id="bbgh-buyer" onchange="onBbghBuyerChange()">
+                  <option value="">-- Chọn bên mua --</option>
+                </select>
+              </div>
+              <div class="fg"><label class="flabel">Địa chỉ</label><textarea class="fta" id="bbgh-buyer-addr"
+                  rows="2"></textarea></div>
+              <div class="fg"><label class="flabel">Địa chỉ nhận hàng</label><input type="text" class="fi"
+                  id="bbgh-buyer-deliv" /></div>
+              <div class="frow">
+                <div class="fg"><label class="flabel">SĐT</label><input type="text" class="fi" id="bbgh-buyer-phone" />
+                </div>
+                <div class="fg"><label class="flabel">MST</label><input type="text" class="fi" id="bbgh-buyer-tax" />
+                </div>
+              </div>
+              <div class="fg"><label class="flabel">Người đại diện</label><input type="text" class="fi"
+                  id="bbgh-buyer-rep" /></div>
+              <div class="fg"><label class="flabel">Chức vụ</label><input type="text" class="fi"
+                  id="bbgh-buyer-reppos" /></div>
+            </div>
+
+            <div class="frow" style="margin-top:8px">
+              <div class="fg"><label class="flabel">Định dạng Serial trên Word</label>
+                <select class="fs" id="bbgh-col-mode">
+                  <option value="auto">Tự động (Theo bộ)</option>
+                  <option value="1">1 Cột Serial</option>
+                  <option value="2">2 Cột Serial</option>
+                </select>
+              </div>
+            </div>
+
+            <button class="btn btn-purple w-full" onclick="submitBbgh()"
+              style="font-size:15px;padding:14px;margin-top:8px">
+              📋 Tạo Biên Bản Bàn Giao
+            </button>
+          </div>
+
+          <!-- Phải: Hàng hóa + OCR -->
+          <div>
+            <div class="flex ic jb mb3">
+              <div>
+                <span class="method-tag m2" style="display:block;width:fit-content;margin-bottom:4px">② Phương thức 2
+                  — Quét Serial</span>
+                <span class="fw7" style="font-size:15px">Danh sách hàng hóa bàn giao</span>
+              </div>
+              <button class="btn btn-primary" onclick="openAddBbghProduct()">➕ Thêm hàng</button>
+            </div>
+
+            <!-- OCR cho BBGH -->
+            <div class="card mb3" style="border-color:rgba(139,92,246,0.3)">
+              <div class="card-hd"><span class="card-hd-title" style="color:#7c3aed">📸 Đọc Ảnh Biên Bản (OCR)</span>
+              </div>
+              <div class="card-pad">
+                <span class="method-tag m1">① Phương thức 1 — Quét ảnh</span>
+                <p class="fs12 c3 mb3">Upload ảnh biên bản bàn giao — tự nhận dạng serial, công ty, người ký</p>
+                <div class="ocr-mini">
+                  <div class="ocr-mini-hd">🖼️ Chọn ảnh biên bản bàn giao</div>
+                  <div class="ocr-mini-actions">
+                    <label class="btn btn-purple btn-sm" style="cursor:pointer">
+                      📁 Chọn ảnh
+                      <input type="file" accept="image/*" id="bbgh-ocr-file"
+                        onchange="handleOcrUpload(this,'bbgh','bbgh-ocr-result','bbgh-ocr-prog','bbgh-ocr-preview')" />
+                    </label>
+                    <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+                      📷 Chụp ảnh
+                      <input type="file" accept="image/*" capture="environment"
+                        onchange="handleOcrUpload(this,'bbgh','bbgh-ocr-result','bbgh-ocr-prog','bbgh-ocr-preview')" />
+                    </label>
+                  </div>
+                  <img id="bbgh-ocr-preview" class="ocr-mini-preview" src="" alt="preview" />
+                </div>
+                <div id="bbgh-ocr-prog-wrap" style="display:none">
+                  <div class="ocr-bar">
+                    <div class="ocr-fill" id="bbgh-ocr-prog"></div>
+                  </div>
+                </div>
+                <div id="bbgh-ocr-result"></div>
+              </div>
+            </div>
+
+            <div id="bbgh-items"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── COMPANIES ─── -->
+      <div class="page" id="page-companies">
+        <div class="ph">
+          <div>
+            <div class="ph-title">🏢 Quản Lý Công Ty</div>
+            <div class="ph-sub">Bên mua / Bên bán — tự điền khi tạo biên bản</div>
+          </div>
+          <div class="ph-actions"><button class="btn btn-primary" onclick="openAddCompany()">➕ Thêm công ty</button>
+          </div>
+        </div>
+        <div class="pb">
+          <div class="toolbar">
+            <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" id="cmp-q"
+                placeholder="Tìm tên công ty..." oninput="renderCompanies()" /></div>
+            <select class="fs" id="cmp-type" onchange="renderCompanies()" style="width:auto">
+              <option value="all">Tất cả</option>
+              <option value="buyer">Bên mua</option>
+              <option value="seller">Bên bán</option>
+              <option value="both">Cả hai</option>
+            </select>
+            <span id="cmp-count" class="c3 fs12"></span>
+          </div>
+          <div id="cmp-list"></div>
+        </div>
+      </div>
+
+      <!-- ─── EMPLOYEES ─── -->
+      <div class="page" id="page-employees">
+        <div class="ph">
+          <div>
+            <div class="ph-title">👥 Quản Lý Nhân Viên</div>
+            <div class="ph-sub">Chọn nhân viên → tự hiện chức vụ trong biên bản bàn giao</div>
+          </div>
+          <div class="ph-actions"><button class="btn btn-primary" onclick="openAddEmployee()">➕ Thêm nhân viên</button>
+          </div>
+        </div>
+        <div class="pb">
+          <div class="toolbar">
+            <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" id="emp-q"
+                placeholder="Tìm tên, chức vụ..." oninput="renderEmployees()" /></div>
+            <span id="emp-count" class="c3 fs12"></span>
+          </div>
+          <div id="emp-list"></div>
+        </div>
+      </div>
+
+      <!-- ─── ADMIN PANEL ─── -->
+      <div class="page" id="page-admin">
+        <div class="ph">
+          <div>
+            <div class="ph-title flex ic gap2">
+              <span>🛡️ Trung Tâm Quản Trị Hệ Thống</span>
+              <span class="badge b-admin">ADMIN ROOT</span>
+            </div>
+            <div class="ph-sub">Quản lý nâng cao · Xóa / dọn dẹp biên bản · Quản lý & xóa Serial · Sao lưu & Phục hồi
+            </div>
+          </div>
+          <div class="ph-actions">
+            <button class="btn btn-ghost btn-sm" onclick="logoutAdmin()">🚪 Đăng xuất Admin</button>
+            <button class="btn btn-primary btn-sm" onclick="exportDatabaseBackup()">💾 Sao lưu JSON</button>
+            <button class="btn btn-purple btn-sm" onclick="triggerImportBackup()">📥 Phục hồi JSON</button>
+          </div>
+        </div>
+
+        <div class="pb">
+          <!-- Thống kê nhanh Admin -->
+          <div class="stats" style="grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));margin-bottom:20px">
+            <div class="stat c-blue">
+              <span class="stat-icon">📦</span>
+              <div class="stat-val" id="adm-stat-products">0</div>
+              <div class="stat-lbl">Sản phẩm</div>
+            </div>
+            <div class="stat c-purple">
+              <span class="stat-icon">🔢</span>
+              <div class="stat-val" id="adm-stat-serials">0</div>
+              <div class="stat-lbl">Serial (Kho / Xuất)</div>
+            </div>
+            <div class="stat c-green">
+              <span class="stat-icon">📥</span>
+              <div class="stat-val" id="adm-stat-imp">0</div>
+              <div class="stat-lbl">Biên bản Nhập</div>
+            </div>
+            <div class="stat c-orange">
+              <span class="stat-icon">📤</span>
+              <div class="stat-val" id="adm-stat-exp">0</div>
+              <div class="stat-lbl">Biên bản Xuất</div>
+            </div>
+            <div class="stat" style="border-left:4px solid #8b5cf6">
+              <span class="stat-icon">📋</span>
+              <div class="stat-val" id="adm-stat-bbgh">0</div>
+              <div class="stat-lbl">Biên bản Bàn giao</div>
+            </div>
+            <div class="stat" style="border-left:4px solid #f59e0b">
+              <span class="stat-icon">💰</span>
+              <div class="stat-val" id="adm-stat-quote">0</div>
+              <div class="stat-lbl">Báo giá</div>
+            </div>
+          </div>
+
+          <!-- Danger Zone: Xóa hàng loạt & Dọn dẹp -->
+          <div class="admin-card mb4">
+            <div class="admin-card-hd flex ic jb">
+              <div class="flex ic gap2">
+                <span style="font-size:22px">⚡</span>
+                <div>
+                  <h3 style="font-size:15px;font-weight:800;color:#991b1b;margin:0">Tác Vụ Xóa Nhanh & Dọn Dẹp Dữ Liệu
+                  </h3>
+                  <p class="fs12 c3" style="margin:2px 0 0">Xóa nhanh từng loại hoặc xóa toàn bộ chứng từ, làm sạch
+                    serial thử nghiệm</p>
+                </div>
+              </div>
+              <span class="badge b-danger">DANGER ZONE</span>
+            </div>
+            <div class="admin-card-bd">
+              <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+                <button class="btn btn-purple btn-sm" onclick="deleteAllDocsOfType('bbgh')">🗑️ Xóa tất cả BB Bàn giao
+                  (<span id="btn-cnt-bbgh">0</span>)</button>
+                <button class="btn btn-success btn-sm" onclick="deleteAllDocsOfType('import')">🗑️ Xóa tất cả BB Nhập
+                  (<span id="btn-cnt-imp">0</span>)</button>
+                <button class="btn btn-orange btn-sm" onclick="deleteAllDocsOfType('export')">🗑️ Xóa tất cả BB Xuất
+                  (<span id="btn-cnt-exp">0</span>)</button>
+                <button class="btn btn-amber btn-sm" onclick="deleteAllDocsOfType('quote')">🗑️ Xóa tất cả Báo giá
+                  (<span id="btn-cnt-quote">0</span>)</button>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:10px;padding-top:12px;border-top:1px dashed #fecaca">
+                <button class="btn btn-danger btn-sm" onclick="deleteAllDocs()">🚨 Xóa TẤT CẢ Chứng Từ / Biên
+                  Bản</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteAllSerials()">🔢 Xóa 100% Tất Cả Serial</button>
+                <button class="btn btn-ghost btn-sm" onclick="deleteExportedSerialsOnly()">🧹 Xóa chỉ Serial ĐÃ
+                  XUẤT</button>
+                <button class="btn btn-ghost btn-sm" onclick="resetAllSerialsToInStock()">🔄 Chuyển tất cả Serial về Tồn
+                  kho</button>
+                <button class="btn btn-danger btn-sm" onclick="fullDataReset()" style="background:#7f1d1d">⚡ Khôi phục
+                  Trắng (Full Reset)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabs: Lịch sử Chứng từ, Quản lý Serial, Cài đặt -->
+          <div class="admin-tabs mb3">
+            <button class="adm-tab-btn active" id="adm-tab-docs-btn" onclick="switchAdminTab('docs')">📋 Quản Lý & Xóa
+              Từng Biên Bản (<span id="adm-tab-docs-cnt">0</span>)</button>
+            <button class="adm-tab-btn" id="adm-tab-serials-btn" onclick="switchAdminTab('serials')">🔢 Quản Lý & Xóa
+              Từng Serial (<span id="adm-tab-serials-cnt">0</span>)</button>
+            <button class="adm-tab-btn" id="adm-tab-settings-btn" onclick="switchAdminTab('settings')">⚙️ Cài Đặt & Mật
+              Khẩu Admin</button>
+          </div>
+
+          <!-- Tab 1: Danh sách chứng từ để xem & xóa lẻ -->
+          <div id="adm-tab-docs">
+            <div class="toolbar">
+              <div class="search-wrap">
+                <span class="search-ico">🔍</span>
+                <input type="text" id="adm-docs-q" placeholder="Tìm kiếm số biên bản, công ty, khách hàng để xóa..."
+                  oninput="renderAdminDocsTable()" />
+              </div>
+              <select class="fs" id="adm-docs-type" onchange="renderAdminDocsTable()" style="width:auto">
+                <option value="all">🔀 Tất cả loại chứng từ</option>
+                <option value="bbgh">📋 Biên bản Bàn giao</option>
+                <option value="import">📥 Biên bản Nhập kho</option>
+                <option value="export">📤 Biên bản Xuất kho</option>
+                <option value="quote">💰 Báo giá</option>
+              </select>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:45px" class="tc">STT</th>
+                    <th>Loại</th>
+                    <th>Số chứng từ</th>
+                    <th>Ngày lập</th>
+                    <th>Bên giao / Bên bán → Bên nhận / Bên mua</th>
+                    <th>Số lượng / Serial</th>
+                    <th>Giá trị</th>
+                    <th class="tc" style="width:170px">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody id="adm-docs-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 2: Danh sách serial để xóa lẻ hoặc xóa nhiều -->
+          <div id="adm-tab-serials" style="display:none">
+            <div class="toolbar">
+              <div class="search-wrap">
+                <span class="search-ico">🔍</span>
+                <input type="text" id="adm-sn-q" placeholder="Tìm mã serial..." oninput="renderAdminSerialsTable()" />
+              </div>
+              <select class="fs" id="adm-sn-prod" onchange="renderAdminSerialsTable()"
+                style="width:auto;max-width:280px">
+                <option value="">Tất cả sản phẩm</option>
+              </select>
+              <select class="fs" id="adm-sn-status" onchange="renderAdminSerialsTable()" style="width:auto">
+                <option value="all">Tất cả trạng thái</option>
+                <option value="in-stock">Trong kho</option>
+                <option value="exported">Đã xuất</option>
+              </select>
+              <button class="btn btn-danger btn-sm" id="btn-del-selected-sn" onclick="deleteSelectedSerials()"
+                style="display:none">🗑️ Xóa mục đã chọn (<span id="cnt-selected-sn">0</span>)</button>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:36px" class="tc"><input type="checkbox" id="adm-sn-master-chk"
+                        onchange="toggleAllSerialCheckboxes(this)" /></th>
+                    <th class="tc">Mã Serial</th>
+                    <th>Mã hàng</th>
+                    <th>Tên sản phẩm</th>
+                    <th>Trạng thái</th>
+                    <th>Ngày nhập</th>
+                    <th>Xuất cho / Ngày</th>
+                    <th class="tc" style="width:130px">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="adm-sn-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 3: Cài đặt Admin & Mật khẩu -->
+          <div id="adm-tab-settings" style="display:none">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:20px">
+              <div class="admin-card">
+                <div class="admin-card-hd">
+                  <h3 style="font-size:15px;font-weight:800;color:var(--text1)">🔑 Đổi Mật Khẩu Admin</h3>
+                </div>
+                <div class="admin-card-bd">
+                  <div class="fg mb2">
+                    <label class="flabel">Mật khẩu hiện tại</label>
+                    <input type="password" class="fi" id="adm-pwd-curr"
+                      placeholder="Nhập mật khẩu hiện tại (mặc định: admin)" />
+                  </div>
+                  <div class="fg mb3">
+                    <label class="flabel">Mật khẩu mới</label>
+                    <input type="password" class="fi" id="adm-pwd-new" placeholder="Nhập mật khẩu mới" />
+                  </div>
+                  <button class="btn btn-primary" onclick="saveNewAdminPassword()">💾 Lưu Mật Khẩu Mới</button>
+                </div>
+              </div>
+
+              <div class="admin-card">
+                <div class="admin-card-hd">
+                  <h3 style="font-size:15px;font-weight:800;color:var(--text1)">💾 Sao Lưu & Phục Hồi</h3>
+                </div>
+                <div class="admin-card-bd">
+                  <p class="fs13 c3 mb3">Tải toàn bộ cơ sở dữ liệu (sản phẩm, biên bản, khách hàng, cấu hình) về máy
+                    tính dự phòng.</p>
+                  <div class="flex gap2 mb3">
+                    <button class="btn btn-primary" onclick="exportDatabaseBackup()">💾 Tải File Sao Lưu
+                      (.json)</button>
+                    <button class="btn btn-purple" onclick="triggerImportBackup()">📂 Nạp File Phục Hồi (.json)</button>
+                  </div>
+                  <input type="file" id="adm-backup-file-input" accept=".json" style="display:none"
+                    onchange="importDatabaseBackup(event)" />
+                  <div class="fs12 c3"
+                    style="background:#f8fafc;padding:10px;border-radius:8px;border:1px solid #e2e8f0">
+                    💡 <b>Lưu ý:</b> Khi nạp file phục hồi, toàn bộ dữ liệu hiện tại sẽ được cập nhật đồng bộ theo file
+                    tải lên.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ─── BÁO CÁO XUẤT NHẬP TỒN & GIÁ TRỊ KHO ─── -->
+      <div class="page" id="page-reports">
+        <div class="ph">
+          <div>
+            <div class="ph-title">📊 Báo Cáo Xuất - Nhập - Tồn & Giá Trị Kho</div>
+            <div class="ph-sub">Tổng hợp biến động tồn kho và tính toán tổng trị giá tiền tồn kho theo thời gian</div>
+          </div>
+          <div class="ph-actions">
+            <button class="btn btn-success" onclick="exportReportsExcel()">📊 Xuất Báo Cáo Excel</button>
+          </div>
+        </div>
+        <div class="pb">
+          <div class="card mb3">
+            <div class="card-hd"><span class="card-hd-title">🔍 Bộ Lọc Khoảng Thời Gian & Phân Loại</span></div>
+            <div class="card-bd" style="padding:16px">
+              <div class="frow mb2">
+                <div class="fg">
+                  <label class="flabel">Từ ngày</label>
+                  <input type="date" class="fi" id="rep-f-start" onchange="renderReportsPage()" />
+                </div>
+                <div class="fg">
+                  <label class="flabel">Đến ngày</label>
+                  <input type="date" class="fi" id="rep-f-end" onchange="renderReportsPage()" />
+                </div>
+                <div class="fg">
+                  <label class="flabel">Loại sản phẩm</label>
+                  <select class="fs" id="rep-f-cat" onchange="renderReportsPage()">
+                    <option value="">Tất cả loại máy / linh kiện</option>
+                    <option value="Máy in & Máy quét">Máy in & Máy quét</option>
+                    <option value="Mực in & Vật tư">Mực in & Vật tư</option>
+                    <option value="Màn hình">Màn hình</option>
+                    <option value="Máy tính & PC">Máy tính & PC</option>
+                    <option value="Phím chuột & Linh kiện">Phím chuột & Linh kiện</option>
+                    <option value="Camera & Thiết bị mạng">Camera & Thiết bị mạng</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label class="flabel">Vị trí (Tầng)</label>
+                  <select class="fs" id="rep-f-floor" onchange="renderReportsPage()">
+                    <option value="">Tất cả các tầng</option>
+                    <option value="Tầng 1">🏢 Tầng 1</option>
+                    <option value="Tầng 2">🏢 Tầng 2</option>
+                    <option value="Tầng 3">🏢 Tầng 3</option>
+                    <option value="Tầng 4">🏢 Tầng 4</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Summary Cards -->
+          <div class="stats mb3">
+            <div class="stat c-blue">
+              <span class="stat-icon">📦</span>
+              <div class="stat-val" id="rep-s-start">—</div>
+              <div class="stat-lbl">Tồn đầu kỳ</div>
+            </div>
+            <div class="stat c-green">
+              <span class="stat-icon">📥</span>
+              <div class="stat-val" id="rep-s-imp">—</div>
+              <div class="stat-lbl">Nhập trong kỳ</div>
+            </div>
+            <div class="stat c-red">
+              <span class="stat-icon">📤</span>
+              <div class="stat-val" id="rep-s-exp">—</div>
+              <div class="stat-lbl">Xuất trong kỳ</div>
+            </div>
+            <div class="stat c-purple">
+              <span class="stat-icon">✅</span>
+              <div class="stat-val" id="rep-s-end">—</div>
+              <div class="stat-lbl">Tồn cuối kỳ</div>
+            </div>
+            <div class="stat c-orange">
+              <span class="stat-icon">💰</span>
+              <div class="stat-val" id="rep-s-val" style="font-size:20px">—</div>
+              <div class="stat-lbl">Giá trị tồn kho (VNĐ)</div>
+            </div>
+          </div>
+
+          <!-- Report Table -->
+          <div class="card">
+            <div class="card-hd"><span class="card-hd-title">📋 Bảng Chi Tiết Xuất Nhập Tồn Sản Phẩm</span></div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>STT</th>
+                    <th>Mã SP</th>
+                    <th>Tên Sản Phẩm</th>
+                    <th>ĐVT</th>
+                    <th>Đơn giá (VNĐ)</th>
+                    <th>Vị trí</th>
+                    <th>Tồn đầu</th>
+                    <th>Nhập</th>
+                    <th>Xuất</th>
+                    <th>Tồn cuối</th>
+                    <th>Thành tiền (VNĐ)</th>
+                  </tr>
+                </thead>
+                <tbody id="rep-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── IN TEM MÃ VẠCH & QR CODE ─── -->
+      <div class="page" id="page-barcode">
+        <div class="ph">
+          <div>
+            <div class="ph-title">🖨️ In Tem Mã Vạch & QR Code Sản Phẩm</div>
+            <div class="ph-sub">Tạo và in tem nhãn mã vạch (Barcode 128 / QR Code) dán thiết bị & thùng carton</div>
+          </div>
+          <div class="ph-actions">
+            <button class="btn btn-primary" onclick="printBarcodeLabelSheet()">🖨️ In Tem Ngay</button>
+          </div>
+        </div>
+        <div class="pb" style="display:grid;grid-template-columns:360px 1fr;gap:20px">
+
+          <div class="card">
+            <div class="card-hd"><span class="card-hd-title">⚙️ Cấu Hình Tem In</span></div>
+            <div class="card-bd" style="padding:16px">
+              <div class="fg mb2">
+                <label class="flabel">Chọn sản phẩm</label>
+                <select class="fs" id="bc-p-sel" onchange="renderBarcodePreview()">
+                  <option value="">-- Chọn sản phẩm --</option>
+                </select>
+              </div>
+              <div class="fg mb2">
+                <label class="flabel">Chọn mã Serial (Nếu có)</label>
+                <select class="fs" id="bc-sn-sel" onchange="renderBarcodePreview()">
+                  <option value="">-- In mã sản phẩm chung --</option>
+                </select>
+              </div>
+              <div class="fg mb2">
+                <label class="flabel">Kiểu tem nhãn</label>
+                <select class="fs" id="bc-tpl-sel" onchange="renderBarcodePreview()">
+                  <option value="50x30">Tem Dán Máy 50x30 mm (Barcode + Thông tin)</option>
+                  <option value="35x22">Tem Dán Serial 35x22 mm (Barcode Nhỏ)</option>
+                  <option value="qr">Tem Mã QR Code 40x40 mm</option>
+                </select>
+              </div>
+              <div class="fg mb3">
+                <label class="flabel">Số lượng tem cần in</label>
+                <input type="number" class="fi" id="bc-qty" value="1" min="1" max="100"
+                  onchange="renderBarcodePreview()" />
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd"><span class="card-hd-title">👁️ Xem Trước Mẫu Tem In</span></div>
+            <div class="card-bd"
+              style="padding:24px;background:#f8fafc;display:flex;justify-content:center;align-items:center;min-height:300px">
+              <div id="bc-print-area"
+                style="background:#ffffff;padding:20px;border-radius:12px;border:1px dashed #cbd5e1;box-shadow:var(--shadow-sm);text-align:center">
+                <div class="c3 fs13">Vui lòng chọn sản phẩm để xem trước tem in</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ─── KIỂM KÊ KHO & CÂN BẰNG TỒN ─── -->
+      <div class="page" id="page-audit">
+        <div class="ph">
+          <div>
+            <div class="ph-title">🔍 Kiểm Kê Kho & Cân Bằng Tồn Tự Động</div>
+            <div class="ph-sub">Đối soát số lượng tồn kho hệ thống vs số lượng thực tế đếm tại kho</div>
+          </div>
+          <div class="ph-actions">
+            <button class="btn btn-warning" onclick="reconcileAuditStock()">⚡ Cân Bằng Kho (Cập nhật Tồn)</button>
+            <button class="btn btn-ghost" onclick="printAuditReportSheet()">🖨️ In Biên Bản Kiểm Kê</button>
+          </div>
+        </div>
+        <div class="pb">
+          <div class="card mb3">
+            <div class="card-hd"><span class="card-hd-title">📍 Chọn Vị Trí Kho / Tầng Kiểm Kê</span></div>
+            <div class="card-bd" style="padding:16px">
+              <div class="frow">
+                <div class="fg">
+                  <label class="flabel">Vị trí Tầng kiểm kê</label>
+                  <select class="fs" id="audit-f-floor" onchange="renderAuditPage()">
+                    <option value="Tầng 1">🏢 Tầng 1 (Khu Máy in & PC)</option>
+                    <option value="Tầng 2">🏢 Tầng 2 (Khu Màn hình & Mực)</option>
+                    <option value="Tầng 3">🏢 Tầng 3 (Khu Linh kiện & Mạng)</option>
+                    <option value="Tầng 4">🏢 Tầng 4 (Kho dự phòng)</option>
+                    <option value="all">Tất cả tầng kho</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label class="flabel">Người kiểm kê</label>
+                  <input type="text" class="fi" id="audit-f-inspector" placeholder="Nhập tên nhân viên kiểm kê..." />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd">
+              <span class="card-hd-title">📋 Bảng Đối Soát Số Lượng Kiểm Kê Kho</span>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Mã SP</th>
+                    <th>Tên Sản Phẩm</th>
+                    <th>ĐVT</th>
+                    <th>Vị Trí Tầng</th>
+                    <th>Tồn Hệ Thống</th>
+                    <th>Thực Tế Đếm Được</th>
+                    <th>Chênh Lệch (+/-)</th>
+                    <th>Ghi Chú Đơn Hàng</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── SAO LƯU DỮ LIỆU ĐỊNH KỲ TỰ ĐỘNG ─── -->
+      <div class="page" id="page-backup">
+        <div class="ph">
+          <div>
+            <div class="ph-title">💾 Hệ Thống Sao Lưu Dữ Liệu Định Kỳ & Firebase</div>
+            <div class="ph-sub">Tự động sao lưu dữ liệu kho hàng, serial, chứng từ và kết nối Google Firebase Realtime</div>
+          </div>
+          <div class="ph-actions">
+            <button class="btn btn-primary" onclick="triggerManualBackupSnapshot()">⚡ Sao Lưu Ngay Lập Tức</button>
+            <button class="btn btn-purple" onclick="triggerImportBackup()">📂 Phục Hồi Dữ Liệu (.json)</button>
+          </div>
+        </div>
+        <div class="pb">
+
+          <div class="card mb3" style="background:linear-gradient(135deg,#eff6ff 0%,#f5f3ff 100%);border-color:#bfdbfe">
+            <div class="card-bd" style="padding:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+              <div class="flex ic gap3">
+                <div style="font-size:36px">⏰</div>
+                <div>
+                  <div style="font-size:16px;font-weight:800;color:#1d4ed8">Tự Động Sao Lưu Hàng Ngày (Auto-Backup)</div>
+                  <div style="font-size:12.5px;color:#334155;margin-top:2px" id="bk-schedule-status">Trạng thái: Đang hoạt động · Tự động chụp bản sao lưu mỗi 24 giờ</div>
+                </div>
+              </div>
+              <div class="flex ic gap2">
+                <span class="badge b-bbgh" style="font-size:12px;padding:6px 12px">🛡️ Dữ Liệu An Toàn 100%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Firebase Live Sync Configuration Card -->
+          <div class="card mb3">
+            <div class="card-hd"><span class="card-hd-title">☁️ Cấu Hình Đồng Bộ Đám Mây Google Firebase (Realtime Multi-Device Sync)</span></div>
+            <div class="card-bd" style="padding:18px">
+              <p class="fs13 c3 mb3">Nhập mã Firebase Config để tự động đồng bộ dữ liệu Realtime 100% giữa tất cả máy tính & điện thoại trong công ty.</p>
+
+              <div class="fg mb2">
+                <label class="flabel">Dán mã Firebase Config (Dạng JSON hoặc Object Javascript)</label>
+                <textarea class="fi" id="fb-config-input" rows="5" placeholder='{\n  "apiKey": "AIzaSy...",\n  "authDomain": "khohang-2026.firebaseapp.com",\n  "projectId": "khohang-2026",\n  "storageBucket": "khohang-2026.appspot.com",\n  "messagingSenderId": "123456789",\n  "appId": "1:123456789:web:abcdef"\n}' style="font-family:monospace;font-size:12px"></textarea>
+              </div>
+
+              <div class="flex ic gap2 mt3">
+                <button class="btn btn-primary" onclick="saveFirebaseConfigFromUI()">💾 Lưu & Kết Nối Firebase</button>
+                <span id="fb-connect-status" class="fs12 fw7 ml2" style="color:#059669">☁️ Trạng thái: Sẵn sàng kết nối</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd">
+              <span class="card-hd-title">📜 Nhật Ký Bản Sao Lưu Tự Động Gần Đây</span>
+              <button class="btn btn-ghost btn-sm" onclick="clearOldBackupsHistory()">🧹 Dọn bản sao lưu cũ</button>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>STT</th>
+                    <th>Thời gian sao lưu</th>
+                    <th>Lý do sao lưu</th>
+                    <th>Số loại SP</th>
+                    <th>Số mã Serial</th>
+                    <th>Tổng chứng từ</th>
+                    <th class="tr" style="width:200px">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="bk-history-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ═══════════════ MODALS ═══════════════ -->
+
+  <!-- Admin Login modal -->
+  <div class="mo-overlay" id="mo-admin-login">
+    <div class="mo mo-sm">
+      <div class="mo-hd">
+        <span class="mo-title">🔐 Đăng Nhập Quản Trị (Admin)</span>
+        <button class="mo-x" onclick="closeModal('mo-admin-login')">✕</button>
+      </div>
+      <div class="mo-body">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="font-size:44px;margin-bottom:8px">🛡️</div>
+          <div style="font-weight:800;font-size:15px;color:var(--text1)">Khu Vực Quản Trị Viên</div>
+          <p class="fs12 c3" style="margin-top:4px">Nhập mật khẩu để truy cập bảng điều khiển xóa & dọn dẹp lịch sử biên
+            bản, serial.</p>
+        </div>
+        <div class="fg mb3">
+          <label class="flabel">Mật khẩu Admin</label>
+          <input type="password" class="fi" id="adm-login-pwd" placeholder="Nhập mật khẩu quản trị..."
+            onkeydown="if(event.key==='Enter')checkAdminPassword()" />
+        </div>
+        <div
+          style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:9px 12px;font-size:12px;color:#166534;display:flex;align-items:center;gap:6px">
+          <span>🔑</span><span>Mật khẩu mặc định: <strong
+              style="font-family:monospace;font-size:13px">admin</strong></span>
+        </div>
+      </div>
+      <div class="mo-ft">
+        <button class="btn btn-primary" onclick="checkAdminPassword()" style="flex:1">✅ Đăng Nhập</button>
+        <button class="btn btn-ghost" onclick="closeModal('mo-admin-login')">Hủy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product modal -->
+  <div class="mo-overlay" id="mo-product">
+    <div class="mo mo-md">
+      <div class="mo-hd"><span class="mo-title" id="pm-title">Serial sản phẩm</span><button class="mo-x"
+          onclick="closeModal('mo-product')">✕</button></div>
+      <div class="mo-body" id="pm-body"></div>
+      <div class="mo-ft"><button class="btn btn-primary" id="pm-add-btn">➕ Thêm Serial</button><button
+          class="btn btn-ghost" onclick="closeModal('mo-product')">Đóng</button></div>
+    </div>
+  </div>
+
+  <!-- Add serial modal -->
+  <div class="mo-overlay" id="mo-add-serial">
+    <div class="mo">
+      <div class="mo-hd"><span class="mo-title">➕ Thêm Serial</span><button class="mo-x"
+          onclick="closeModal('mo-add-serial')">✕</button></div>
+      <div class="mo-body">
+        <div
+          style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13.5px;color:#1d4ed8">
+          <strong>Sản phẩm:</strong> <span id="as-pname"></span>
+        </div>
+        <div class="scan-box mb3">
+          <label>📡 Nhập / Quét serial — mỗi dòng 1 serial</label>
+          <textarea id="as-input" placeholder="SN202600001&#10;SN202600002&#10;..." rows="7"
+            oninput="previewSerials()"></textarea>
+        </div>
+        <div id="as-preview">
+          <p class="fs12 c3">Nhập serial để xem trước...</p>
+        </div>
+      </div>
+      <div class="mo-ft"><button class="btn btn-success" onclick="confirmAddSerial()">✅ Thêm vào kho</button><button
+          class="btn btn-ghost" onclick="closeModal('mo-add-serial')">Hủy</button></div>
+    </div>
+  </div>
+
+  <!-- Import product select -->
+  <div class="mo-overlay" id="mo-imp-product">
+    <div class="mo">
+      <div class="mo-hd"><span class="mo-title">📦 Chọn sản phẩm nhập</span><button class="mo-x"
+          onclick="closeModal('mo-imp-product')">✕</button></div>
+      <div class="mo-body">
+        <div class="fg">
+          <label class="flabel">Tìm kiếm / Chọn sản phẩm</label>
+          <input type="text" class="fi mb2" id="imp-psearch" placeholder="🔍 Gõ tên hoặc mã SP để tìm..."
+            oninput="filterProductSelect('imp')" />
+          <select class="fs" id="imp-psel" size="10" style="height:auto">
+            <option value="">-- Chọn --</option>
+          </select>
+        </div>
+      </div>
+      <div class="mo-ft"><button class="btn btn-primary" onclick="confirmImportProduct()">➕ Thêm</button><button
+          class="btn btn-ghost" onclick="closeModal('mo-imp-product')">Hủy</button></div>
+    </div>
+  </div>
+
+  <!-- Export product select -->
+  <div class="mo-overlay" id="mo-exp-product">
+    <div class="mo">
+      <div class="mo-hd"><span class="mo-title">📤 Chọn sản phẩm xuất</span><button class="mo-x"
+          onclick="closeModal('mo-exp-product')">✕</button></div>
+      <div class="mo-body">
+        <div class="fg">
+          <label class="flabel">Tìm kiếm / Chọn sản phẩm (có serial trong kho)</label>
+          <input type="text" class="fi mb2" id="exp-psearch" placeholder="🔍 Gõ tên hoặc mã SP để tìm..."
+            oninput="filterProductSelect('exp')" />
+          <select class="fs" id="exp-psel" size="10" style="height:auto">
+            <option value="">-- Chọn --</option>
+          </select>
+        </div>
+      </div>
+      <div class="mo-ft"><button class="btn btn-primary" onclick="confirmExportProduct()">➕ Thêm</button><button
+          class="btn btn-ghost" onclick="closeModal('mo-exp-product')">Hủy</button></div>
+    </div>
+  </div>
+
+  <!-- Quote product select -->
+  <div class="mo-overlay" id="mo-quote-product">
+    <div class="mo">
+      <div class="mo-hd"><span class="mo-title">💰 Chọn sản phẩm báo giá</span><button class="mo-x"
+          onclick="closeModal('mo-quote-product')">✕</button></div>
+      <div class="mo-body">
+        <div class="fg">
+          <label class="flabel">Tìm kiếm / Chọn sản phẩm trong danh mục</label>
+          <input type="text" class="fi mb2" id="quote-psearch" placeholder="🔍 Gõ tên hoặc mã SP để tìm..."
+            oninput="filterProductSelect('quote')" />
+          <select class="fs" id="quote-psel" size="10" style="height:auto">
+            <option value="">-- Chọn --</option>
+          </select>
+        </div>
+      </div>
+      <div class="mo-ft"><button class="btn btn-primary" onclick="confirmAddQuoteProduct()">➕ Thêm vào báo
+          giá</button><button class="btn btn-ghost" onclick="closeModal('mo-quote-product')">Hủy</button></div>
+    </div>
+  </div>
+
+  <!-- View any doc / quote -->
+  <div class="mo-overlay" id="mo-view-doc">
+    <div class="mo mo-xl">
+      <div class="mo-hd"><span class="mo-title" id="vd-title">Chứng từ</span><button class="mo-x"
+          onclick="closeModal('mo-view-doc')">✕</button></div>
+      <div class="mo-body" id="vd-body"></div>
+      <div class="mo-ft">
+        <button class="btn btn-primary" id="vd-print">🖨️ In chứng từ</button>
+        <button class="btn btn-success" id="vd-excel" style="display:none">📊 Xuất Excel</button>
+        <button class="btn btn-purple" id="vd-word" style="display:none">📄 Xuất Word</button>
+        <button class="btn btn-ghost" onclick="closeModal('mo-view-doc')">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Company CRUD -->
+  <div class="mo-overlay" id="mo-company">
+    <div class="mo mo-md">
+      <div class="mo-hd"><span class="mo-title" id="cmp-mo-title">🏢 Thêm công ty</span><button class="mo-x"
+          onclick="closeModal('mo-company')">✕</button></div>
+      <div class="mo-body">
+        <div class="fg"><label class="flabel">Tên đầy đủ <span class="req">*</span></label><input type="text" class="fi"
+            id="cmp-f-name" /></div>
+        <div class="frow">
+          <div class="fg"><label class="flabel">Tên tắt</label><input type="text" class="fi" id="cmp-f-short" /></div>
+          <div class="fg"><label class="flabel">Loại</label><select class="fs" id="cmp-f-type">
+              <option value="buyer">Bên mua</option>
+              <option value="seller">Bên bán</option>
+              <option value="both">Cả hai</option>
+            </select></div>
+        </div>
+        <div class="fg"><label class="flabel">Địa chỉ</label><textarea class="fta" id="cmp-f-addr" rows="2"></textarea>
+        </div>
+        <div class="fg"><label class="flabel">Địa chỉ nhận hàng</label><input type="text" class="fi" id="cmp-f-deliv" />
+        </div>
+        <div class="frow">
+          <div class="fg"><label class="flabel">Điện thoại</label><input type="text" class="fi" id="cmp-f-phone" />
+          </div>
+          <div class="fg"><label class="flabel">Mã số thuế</label><input type="text" class="fi" id="cmp-f-tax" /></div>
+        </div>
+        <div class="frow">
+          <div class="fg"><label class="flabel">Người đại diện</label><input type="text" class="fi" id="cmp-f-rep" />
+          </div>
+          <div class="fg"><label class="flabel">Chức vụ</label><input type="text" class="fi" id="cmp-f-reppos" /></div>
+        </div>
+        <div class="fg"><label class="flabel">Ghi chú</label><input type="text" class="fi" id="cmp-f-note" /></div>
+      </div>
+      <div class="mo-ft"><button class="btn btn-success" onclick="saveCompany()">💾 Lưu</button><button
+          class="btn btn-ghost" onclick="closeModal('mo-company')">Hủy</button></div>
+    </div>
+  </div>
+
+  <!-- Employee CRUD -->
+  <div class="mo-overlay" id="mo-employee">
+    <div class="mo">
+      <div class="mo-hd"><span class="mo-title" id="emp-mo-title">👤 Thêm nhân viên</span><button class="mo-x"
+          onclick="closeModal('mo-employee')">✕</button></div>
+      <div class="mo-body">
+        <div class="fg"><label class="flabel">Họ và tên <span class="req">*</span></label><input type="text" class="fi"
+            id="emp-f-name" /></div>
+        <div class="frow">
+          <div class="fg"><label class="flabel">Chức vụ</label><input type="text" class="fi" id="emp-f-pos" /></div>
+          <div class="fg"><label class="flabel">Phòng ban</label><input type="text" class="fi" id="emp-f-dept" /></div>
+        </div>
+        <div class="fg"><label class="flabel">Điện thoại</label><input type="text" class="fi" id="emp-f-phone" /></div>
+      </div>
+      <div class="mo-ft"><button class="btn btn-success" onclick="saveEmployee()">💾 Lưu</button><button
+          class="btn btn-ghost" onclick="closeModal('mo-employee')">Hủy</button></div>
+    </div>
+  </div>
+
+  <!-- BBGH product select -->
+  <div class="mo-overlay" id="mo-bbgh-product">
+    <div class="mo">
+      <div class="mo-hd"><span class="mo-title">📦 Thêm hàng vào BBGH</span><button class="mo-x"
+          onclick="closeModal('mo-bbgh-product')">✕</button></div>
+      <div class="mo-body">
+        <div class="fg">
+          <label class="flabel">Tìm kiếm / Chọn sản phẩm (có serial trong kho)</label>
+          <input type="text" class="fi mb2" id="bbgh-psearch" placeholder="🔍 Gõ tên hoặc mã SP để tìm..."
+            oninput="filterProductSelect('bbgh')" />
+          <select class="fs" id="bbgh-psel" size="10" style="height:auto">
+            <option value="">-- Chọn --</option>
+          </select>
+        </div>
+      </div>
+      <div class="mo-ft"><button class="btn btn-primary" onclick="confirmBbghProduct()">➕ Thêm</button><button
+          class="btn btn-ghost" onclick="closeModal('mo-bbgh-product')">Hủy</button></div>
+    </div>
+  </div>
+
+  <!-- OCR product picker (khi có nhiều sản phẩm) -->
+  <div class="mo-overlay" id="mo-ocr-picker">
+    <div class="mo">
+      <div class="mo-hd"><span class="mo-title">🎯 Gán Serial Từ Ảnh</span><button class="mo-x"
+          onclick="closeModal('mo-ocr-picker')">✕</button></div>
+      <div class="mo-body">
+        <p class="fs13 mb3">Chọn sản phẩm để gán <span id="ocr-picker-count" class="cp fw7"></span>:</p>
+        <input type="hidden" id="ocr-picker-from" />
+        <div class="fg"><label class="flabel">Sản phẩm</label>
+          <select class="fs" id="ocr-picker-opts" size="8" style="height:auto">
+            <option value="">-- Chọn --</option>
+          </select>
+        </div>
+      </div>
+      <div class="mo-ft"><button class="btn btn-primary" onclick="confirmOcrProductPick()">✅ Gán serial</button><button
+          class="btn btn-ghost" onclick="closeModal('mo-ocr-picker')">Hủy</button></div>
+    </div>
+  </div>
+
+  <!-- Modal Đổi Vị Trí Kho / Tầng -->
+  <div class="mo-overlay" id="mo-location">
+    <div class="mo">
+      <div class="mo-hd"><span class="mo-title">🏢 Cập Nhật Vị Trí / Tầng Kho</span><button class="mo-x"
+          onclick="closeModal('mo-location')">✕</button></div>
+      <div class="mo-body">
+        <input type="hidden" id="loc-pid" />
+        <div class="fg mb3">
+          <label class="flabel">Sản phẩm</label>
+          <div id="loc-pname" class="fw7 fs14" style="color:var(--blue)"></div>
+        </div>
+        <div class="fg mb3">
+          <label class="flabel">Chọn Tầng / Vị trí kho <span class="req">*</span></label>
+          <select class="fs" id="loc-select" onchange="onLocSelectChange(this.value)">
+            <option value="Tầng 1">🏢 Tầng 1 (Khu Máy & PC)</option>
+            <option value="Tầng 2">🏢 Tầng 2 (Khu Màn Hình & Mực)</option>
+            <option value="Tầng 3">🏢 Tầng 3 (Khu Linh Kiện & Mạng)</option>
+            <option value="Tầng 4">🏢 Tầng 4 (Kho Dự Phòng)</option>
+            <option value="custom">✏️ Vị trí khác (Nhập tự do)...</option>
+          </select>
+        </div>
+        <div class="fg" id="loc-custom-wrap" style="display:none">
+          <label class="flabel">Nhập vị trí kho chi tiết</label>
+          <input type="text" class="fi" id="loc-custom" placeholder="Ví dụ: Tầng 1 - Kệ A3, Tầng 2 - Tủ B..." />
+        </div>
+      </div>
+      <div class="mo-ft">
+        <button class="btn btn-success" onclick="saveProductLocation()">💾 Cập nhật vị trí</button>
+        <button class="btn btn-ghost" onclick="closeModal('mo-location')">Hủy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOASTS -->
+  <div id="toasts"></div>
+
+  <script src="data.js?v=16.0"></script>
+  <script src="app.js?v=16.0"></script>
+</body>
+
+</html>
