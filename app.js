@@ -6,6 +6,7 @@
 let db = {
   products: [], serials: {}, importDocs: [], exportDocs: [],
   companies: [], employees: [], bbghDocs: [], quotations: [],
+  rentals: [],
   myCompany: { name: '', address: '', phone: '', taxCode: '', rep: '', repPosition: '' },
 };
 
@@ -69,6 +70,7 @@ function refreshActivePage() {
   if (document.getElementById('page-products')?.classList.contains('active')) renderProducts();
   if (document.getElementById('page-serials')?.classList.contains('active')) renderSerials();
   if (document.getElementById('page-all-history')?.classList.contains('active')) renderAllHistory();
+  if (document.getElementById('page-rental')?.classList.contains('active')) renderRentalPage();
 }
 
 const save = () => {
@@ -95,6 +97,7 @@ function load() {
       if (!db.employees) db.employees = [...INITIAL_EMPLOYEES];
       if (!db.bbghDocs) db.bbghDocs = [];
       if (!db.quotations) db.quotations = [];
+      if (!db.rentals) db.rentals = [];
       if (!db.myCompany) db.myCompany = { name: '', address: '', phone: '', taxCode: '', rep: '', repPosition: '' };
       if (!db.adminPassword) db.adminPassword = 'admin';
     } catch (e) { initDb(); }
@@ -132,6 +135,7 @@ function initDb() {
   db.employees = INITIAL_EMPLOYEES.map(e => ({ ...e }));
   db.bbghDocs = [];
   db.quotations = [];
+  db.rentals = [];
   db.myCompany = { name: '', address: '', phone: '', taxCode: '', rep: '', repPosition: '' };
   db.adminPassword = 'admin';
   save();
@@ -210,9 +214,11 @@ function getStockCount(pid) {
   const p = getProduct(pid);
   const serials = Object.values(db.serials).filter(s => s.productId === pid);
   if (serials.length > 0) {
+    // Sản phẩm có serial: đếm serial in-stock
     return serials.filter(s => s.status === 'in-stock').length;
   }
   if (!p) return 0;
+  // Sản phẩm không serial: dùng initialStock - exported
   return Math.max(0, (p.initialStock || 0) - (p.exported || 0));
 }
 function getExportedCount(pid) {
@@ -223,17 +229,31 @@ function getExportedCount(pid) {
   }
   return p?.exported || 0;
 }
+function productHasSerial(pid) {
+  return Object.values(db.serials).some(s => s.productId === pid);
+}
 function getSerialsOf(pid, status = null) {
   return Object.entries(db.serials)
     .filter(([n, s]) => s.productId === pid && (status === null || s.status === status))
     .map(([n, s]) => ({ serialNum: n, ...s }));
 }
 function getTotals() {
+  // Tính tổng tồn kho thực: serial in-stock + qty hàng không serial
+  let totalInStock = 0;
+  let totalExported = 0;
+  db.products.forEach(p => {
+    totalInStock += getStockCount(p.id);
+    totalExported += getExportedCount(p.id);
+  });
+  const activeRentals = (db.rentals || []).filter(r => r.status !== 'returned').length;
+  const overdueRentals = (db.rentals || []).filter(r => r.status !== 'returned' && r.endDate < today()).length;
   return {
     products: db.products.length,
-    inStock: Object.values(db.serials).filter(s => s.status === 'in-stock').length,
-    exported: Object.values(db.serials).filter(s => s.status === 'exported').length,
+    inStock: totalInStock,
+    exported: totalExported,
     totalDocs: db.importDocs.length + db.exportDocs.length + db.bbghDocs.length + (db.quotations || []).length,
+    activeRentals,
+    overdueRentals,
   };
 }
 
@@ -242,7 +262,7 @@ function genDocNum(prefix, list) {
 }
 
 // ─── NAVIGATION ──────────────────────────────────────────────────
-const PAGES = ['dashboard', 'inventory', 'products', 'serials', 'import', 'export', 'all-history', 'companies', 'employees', 'bbgh', 'bbgh-history', 'quote', 'admin', 'reports', 'barcode', 'audit', 'backup'];
+const PAGES = ['dashboard', 'inventory', 'products', 'serials', 'import', 'export', 'all-history', 'companies', 'employees', 'bbgh', 'bbgh-history', 'quote', 'admin', 'reports', 'barcode', 'audit', 'backup', 'rental'];
 
 function nav(page) {
   closeMobileSidebar();
@@ -261,7 +281,7 @@ function nav(page) {
     'bbgh': renderBbghForm, 'bbgh-history': renderAllHistory,
     'quote': renderQuotePage, 'admin': renderAdminPage,
     'reports': renderReportsPage, 'barcode': renderBarcodePage, 'audit': renderAuditPage,
-    'backup': renderBackupPage,
+    'backup': renderBackupPage, 'rental': renderRentalPage,
   };
   renders[page]?.();
 }
@@ -743,8 +763,20 @@ function renderDashboard() {
   const t = getTotals();
   document.getElementById('d-products').textContent = t.products;
   document.getElementById('d-instock').textContent = t.inStock;
+  const subEl = document.getElementById('d-instock-sub');
+  if (subEl) {
+    const snCount = Object.values(db.serials).filter(s => s.status === 'in-stock').length;
+    const nonSnCount = t.inStock - snCount;
+    subEl.textContent = nonSnCount > 0 ? `(${snCount} serial + ${nonSnCount} không SN)` : (snCount > 0 ? `(${snCount} serial)` : '');
+  }
   document.getElementById('d-exported').textContent = t.exported;
   document.getElementById('d-docs').textContent = t.totalDocs;
+  const rentalEl = document.getElementById('d-rental');
+  if (rentalEl) rentalEl.textContent = t.activeRentals;
+  const rentalOverdueEl = document.getElementById('d-rental-overdue');
+  if (rentalOverdueEl) rentalOverdueEl.textContent = t.overdueRentals > 0 ? `⚠️ ${t.overdueRentals} quá hạn!` : '';
+  const sbBadge = document.getElementById('sb-rental-badge');
+  if (sbBadge) sbBadge.textContent = t.activeRentals > 0 ? t.activeRentals : '';
 
   // recent docs — ALL types
   const all = getAllDocsSorted().slice(0, 8);
@@ -787,15 +819,8 @@ function renderDashboard() {
       'Tầng 4': { stock: 0, catalog: 0 },
     };
 
-    let catStats = {
-      'Máy in & Máy quét': { stock: 0, catalog: 0 },
-      'Mực in & Vật tư': { stock: 0, catalog: 0 },
-      'Màn hình': { stock: 0, catalog: 0 },
-      'Máy tính & PC': { stock: 0, catalog: 0 },
-      'Phím chuột & Linh kiện': { stock: 0, catalog: 0 },
-      'Camera & Thiết bị mạng': { stock: 0, catalog: 0 },
-    };
-
+    let catStats = {};
+    let brandStats = {};
     let allEnriched = [];
 
     db.products.forEach(rawP => {
@@ -803,21 +828,23 @@ function renderDashboard() {
       const stock = getStockCount(p.id);
       allEnriched.push({ ...p, stock });
 
-      const loc = floorStats[p.location] ? p.location : 'Tầng 3';
+      const loc = floorStats[p.location] ? p.location : 'Tầng 1';
       floorStats[loc].catalog += 1;
       floorStats[loc].stock += stock;
 
-      if (catStats[p.category]) {
-        catStats[p.category].catalog += 1;
-        catStats[p.category].stock += stock;
-      }
+      const cat = p.category || 'Khác';
+      if (!catStats[cat]) catStats[cat] = { stock: 0, catalog: 0 };
+      catStats[cat].catalog += 1;
+      catStats[cat].stock += stock;
+
+      const brand = p.brand || 'Khác';
+      if (!brandStats[brand]) brandStats[brand] = { stock: 0, catalog: 0 };
+      brandStats[brand].catalog += 1;
+      brandStats[brand].stock += stock;
     });
 
-    let kitCount = Math.min(
-      catStats['Máy tính & PC'].stock,
-      catStats['Màn hình'].stock,
-      catStats['Phím chuột & Linh kiện'].stock
-    );
+    const sortedCats = Object.entries(catStats).sort((a,b) => b[1].stock - a[1].stock);
+    const sortedBrands = Object.entries(brandStats).sort((a,b) => b[1].stock - a[1].stock);
 
     // Top 6 products with highest stock
     const inStockItems = allEnriched.filter(x => x.stock > 0).sort((a, b) => b.stock - a.stock);
@@ -834,38 +861,29 @@ function renderDashboard() {
       <div class="card-bd" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:14px;padding:16px">
         
         <div class="inv-summary-card" onclick="setFloorFilter('Tầng 1')" style="background:linear-gradient(135deg,#ffffff 0%,#eff6ff 100%);border-color:#bfdbfe">
-          <div class="inv-summary-icon" style="background:#dbeafe;color:#1d4ed8;font-size:22px">🏢</div>
+          <div class="inv-summary-icon" style="background:#dbeafe;color:#1d4ed8;font-size:22px">🏭</div>
           <div>
             <div style="font-size:11px;font-weight:800;color:#1d4ed8;text-transform:uppercase">TẦNG 1</div>
             <div class="inv-summary-val" style="color:#1d4ed8">${floorStats['Tầng 1'].stock} <span class="fs12 font-normal">cái tồn</span></div>
-            <div class="inv-summary-lbl">${floorStats['Tầng 1'].catalog} mã hàng · Máy in, PC</div>
+            <div class="inv-summary-lbl">${floorStats['Tầng 1'].catalog} mã hàng</div>
           </div>
         </div>
 
         <div class="inv-summary-card" onclick="setFloorFilter('Tầng 2')" style="background:linear-gradient(135deg,#ffffff 0%,#ecfdf5 100%);border-color:#a7f3d0">
-          <div class="inv-summary-icon" style="background:#dcfce7;color:#047857;font-size:22px">🏢</div>
+          <div class="inv-summary-icon" style="background:#dcfce7;color:#047857;font-size:22px">🏭</div>
           <div>
             <div style="font-size:11px;font-weight:800;color:#047857;text-transform:uppercase">TẦNG 2</div>
             <div class="inv-summary-val" style="color:#047857">${floorStats['Tầng 2'].stock} <span class="fs12 font-normal">cái tồn</span></div>
-            <div class="inv-summary-lbl">${floorStats['Tầng 2'].catalog} mã hàng · Màn hình, Mực</div>
+            <div class="inv-summary-lbl">${floorStats['Tầng 2'].catalog} mã hàng</div>
           </div>
         </div>
 
         <div class="inv-summary-card" onclick="setFloorFilter('Tầng 3')" style="background:linear-gradient(135deg,#ffffff 0%,#fff7ed 100%);border-color:#fed7aa">
-          <div class="inv-summary-icon" style="background:#ffedd5;color:#c2410c;font-size:22px">🏢</div>
+          <div class="inv-summary-icon" style="background:#ffedd5;color:#c2410c;font-size:22px">🏭</div>
           <div>
             <div style="font-size:11px;font-weight:800;color:#c2410c;text-transform:uppercase">TẦNG 3</div>
             <div class="inv-summary-val" style="color:#c2410c">${floorStats['Tầng 3'].stock} <span class="fs12 font-normal">cái tồn</span></div>
-            <div class="inv-summary-lbl">${floorStats['Tầng 3'].catalog} mã hàng · Linh kiện</div>
-          </div>
-        </div>
-
-        <div class="inv-summary-card" onclick="setFloorFilter('Tầng 4')" style="background:linear-gradient(135deg,#ffffff 0%,#fdf4ff 100%);border-color:#f5d0fe">
-          <div class="inv-summary-icon" style="background:#fae8ff;color:#7e22ce;font-size:22px">🏢</div>
-          <div>
-            <div style="font-size:11px;font-weight:800;color:#7e22ce;text-transform:uppercase">TẦNG 4</div>
-            <div class="inv-summary-val" style="color:#7e22ce">${floorStats['Tầng 4'].stock} <span class="fs12 font-normal">cái tồn</span></div>
-            <div class="inv-summary-lbl">${floorStats['Tầng 4'].catalog} mã hàng · Kho dự phòng</div>
+            <div class="inv-summary-lbl">${floorStats['Tầng 3'].catalog} mã hàng</div>
           </div>
         </div>
 
@@ -875,41 +893,29 @@ function renderDashboard() {
     <!-- ROW 2: LOẠI MÁY & TOP HÀNG TỒN NHIỀU NHẤT -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
       
-      <!-- Cột Trái: Loại Máy & Bộ Máy Tính -->
+      <!-- Cột Trái: Phân Loại & Hãng -->
       <div class="card">
-        <div class="card-hd"><span class="card-hd-title">🖥️ Phân Loại Thiết Bị & Bộ Máy Ráp</span></div>
+        <div class="card-hd"><span class="card-hd-title">🖥️ Thống Kê Theo Phân Loại & Hãng</span></div>
         <div class="card-bd" style="display:flex;flex-direction:column;gap:14px;padding:18px">
           
-          <div style="display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#f5f3ff 0%,#eff6ff 100%);border:1px solid #ddd6fe;padding:14px 18px;border-radius:12px">
-            <div>
-              <div style="font-size:32px;font-weight:900;color:#6d28d9;line-height:1">${kitCount} <span class="fs14 font-normal">bộ</span></div>
-              <div style="font-size:12.5px;color:var(--text2);margin-top:4px;font-weight:700">Bộ Máy Hoàn Chỉnh (Case + Màn + Phím)</div>
-            </div>
-            <div style="font-size:12px;display:flex;flex-direction:column;gap:4px">
-              <div class="flex ic gap2"><span class="badge b-bbgh" style="width:36px;text-align:center">${catStats['Máy tính & PC'].stock}</span> PC (${catStats['Máy tính & PC'].catalog} loại)</div>
-              <div class="flex ic gap2"><span class="badge b-bbgh" style="width:36px;text-align:center">${catStats['Màn hình'].stock}</span> Màn hình (${catStats['Màn hình'].catalog} loại)</div>
-              <div class="flex ic gap2"><span class="badge b-bbgh" style="width:36px;text-align:center">${catStats['Phím chuột & Linh kiện'].stock}</span> Phím (${catStats['Phím chuột & Linh kiện'].catalog} loại)</div>
-            </div>
+          <div style="font-weight:700; font-size: 13px; color: var(--text2);">📦 Theo Phân Loại (Danh mục)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            ${sortedCats.slice(0, 4).map(c => `
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;cursor:pointer" onclick="filterInventoryByCategory('${esc(c[0])}')">
+              <div style="font-size:15px;font-weight:800;color:var(--text1);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(c[0])}">${esc(c[0])}</div>
+              <div style="font-size:14px;font-weight:700;color:#2563eb">${c[1].stock} <span class="fs11 font-normal c3">tồn</span></div>
+              <div class="fs11 c3">${c[1].catalog} mã hàng</div>
+            </div>`).join('')}
           </div>
 
+          <div style="font-weight:700; font-size: 13px; color: var(--text2); margin-top: 8px;">🏷️ Theo Hãng Sản Xuất (Thương hiệu)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;cursor:pointer" onclick="filterInventoryByCategory('Máy in & Máy quét')">
-              <div class="flex ic jb">
-                <span style="font-size:20px">🖨️</span>
-                <span class="fs11 fw7" style="color:#1d4ed8">Tầng 1</span>
-              </div>
-              <div style="font-size:20px;font-weight:900;color:#1d4ed8;margin:4px 0">${catStats['Máy in & Máy quét'].stock} <span class="fs11 font-normal">tồn</span></div>
-              <div style="font-size:11.5px;font-weight:700;color:#334155">${catStats['Máy in & Máy quét'].catalog} loại Máy in / Máy quét →</div>
-            </div>
-
-            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;cursor:pointer" onclick="filterInventoryByCategory('Mực in & Vật tư')">
-              <div class="flex ic jb">
-                <span style="font-size:20px">🧪</span>
-                <span class="fs11 fw7" style="color:#15803d">Tầng 2</span>
-              </div>
-              <div style="font-size:20px;font-weight:900;color:#15803d;margin:4px 0">${catStats['Mực in & Vật tư'].stock} <span class="fs11 font-normal">tồn</span></div>
-              <div style="font-size:11.5px;font-weight:700;color:#334155">${catStats['Mực in & Vật tư'].catalog} loại Mực / Bột từ →</div>
-            </div>
+            ${sortedBrands.slice(0, 4).map(b => `
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;cursor:pointer" onclick="filterInventoryByBrand('${esc(b[0])}')">
+              <div style="font-size:15px;font-weight:800;color:var(--text1);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(b[0])}">${esc(b[0])}</div>
+              <div style="font-size:14px;font-weight:700;color:#15803d">${b[1].stock} <span class="fs11 font-normal c3">tồn</span></div>
+              <div class="fs11 c3">${b[1].catalog} mã hàng</div>
+            </div>`).join('')}
           </div>
 
         </div>
@@ -931,7 +937,7 @@ function renderDashboard() {
             </div>` :
         topProducts.map((p, idx) => {
           const pct = Math.round((p.stock / maxStock) * 100);
-          const floorClass = p.location === 'Tầng 1' ? 'b-floor-1' : p.location === 'Tầng 2' ? 'b-floor-2' : p.location === 'Tầng 3' ? 'b-floor-3' : 'b-floor-4';
+          const floorClass = p.location === 'Tầng 1' ? 'b-floor-1' : p.location === 'Tầng 2' ? 'b-floor-2' : 'b-floor-3';
 
           return `
               <div style="cursor:pointer" onclick="openProductModal('${esc(p.id)}')">
@@ -1258,20 +1264,49 @@ function renderProducts() {
 function openProductModal(pid) {
   const p = getProduct(pid); if (!p) return;
   const inS = getSerialsOf(pid, 'in-stock'), exS = getSerialsOf(pid, 'exported');
+  const hasSerial = inS.length > 0 || exS.length > 0;
+  const stockCount = getStockCount(pid);
+  const exportedCount = getExportedCount(pid);
   document.getElementById('pm-title').textContent = p.name.substring(0, 60);
-  document.getElementById('pm-body').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
-      ${[['✅', 'Trong kho', inS.length, 'cg', '#ecfdf5', '#a7f3d0'], ['📤', 'Đã xuất', exS.length, 'cr', '#fff1f2', '#fecdd3'], ['🔢', 'Tổng SN', inS.length + exS.length, 'cb', '#eff6ff', '#bfdbfe']].map(([ic, lb, n, c, bg, bc]) => `
-      <div style="background:${bg};border:1px solid ${bc};border-radius:12px;padding:14px;text-align:center;box-shadow:var(--shadow-xs)">
-        <div style="font-size:22px">${ic}</div><div class="fw8 ${c}" style="font-size:26px;margin:4px 0">${n}</div>
-        <div class="fs11" style="font-weight:700;color:var(--text3);text-transform:uppercase">${lb}</div></div>`).join('')}
-    </div>
-    <div class="sec-label" style="color:#059669">✅ Còn trong kho (${inS.length})</div>
-    ${inS.length === 0 ? '<p class="fs12 c3 mt2">Không có serial nào</p>' : `<div class="chip-grid mt2">${inS.map(s => `<div class="chip chip-ok">${esc(s.serialNum)}<span class="chip-x" onclick="deleteSerial1('${esc(s.serialNum)}','${esc(pid)}')">×</span></div>`).join('')}</div>`}
-    <div class="divider"></div>
-    <div class="sec-label" style="color:#e11d48">📤 Đã xuất (${exS.length})</div>
-    ${exS.length === 0 ? '<p class="fs12 c3 mt2">Chưa có serial nào xuất</p>' : `<div class="chip-grid mt2">${exS.map(s => `<div class="chip chip-out" title="Xuất: ${fmtDate(s.exportDate)} | Cho: ${esc(s.exportTo || '?')}">${esc(s.serialNum)}<span class="fs11 c3"> →${(s.exportTo || '').substring(0, 12)}</span></div>`).join('')}</div>`}
-  `;
+
+  if (hasSerial) {
+    // Sản phẩm có serial — hiển thị danh sách serial
+    document.getElementById('pm-body').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+        ${[['✅', 'Trong kho', inS.length, 'cg', '#ecfdf5', '#a7f3d0'], ['📤', 'Đã xuất', exS.length, 'cr', '#fff1f2', '#fecdd3'], ['🔢', 'Tổng SN', inS.length + exS.length, 'cb', '#eff6ff', '#bfdbfe']].map(([ic, lb, n, c, bg, bc]) => `
+        <div style="background:${bg};border:1px solid ${bc};border-radius:12px;padding:14px;text-align:center;box-shadow:var(--shadow-xs)">
+          <div style="font-size:22px">${ic}</div><div class="fw8 ${c}" style="font-size:26px;margin:4px 0">${n}</div>
+          <div class="fs11" style="font-weight:700;color:var(--text3);text-transform:uppercase">${lb}</div></div>`).join('')}
+      </div>
+      <div class="sec-label" style="color:#059669">✅ Còn trong kho (${inS.length})</div>
+      ${inS.length === 0 ? '<p class="fs12 c3 mt2">Không có serial nào trong kho</p>' : `<div class="chip-grid mt2">${inS.map(s => `<div class="chip chip-ok">${esc(s.serialNum)}<span class="chip-x" onclick="deleteSerial1('${esc(s.serialNum)}','${esc(pid)}')">×</span></div>`).join('')}</div>`}
+      <div class="divider"></div>
+      <div class="sec-label" style="color:#e11d48">📤 Đã xuất (${exS.length})</div>
+      ${exS.length === 0 ? '<p class="fs12 c3 mt2">Chưa có serial nào xuất</p>' : `<div class="chip-grid mt2">${exS.map(s => `<div class="chip chip-out" title="Xuất: ${fmtDate(s.exportDate)} | Cho: ${esc(s.exportTo || '?')}">${esc(s.serialNum)}<span class="fs11 c3"> →${(s.exportTo || '').substring(0, 12)}</span></div>`).join('')}</div>`}
+    `;
+  } else {
+    // Sản phẩm không serial — hiển thị số lượng tồn
+    document.getElementById('pm-body').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:20px;text-align:center">
+          <div style="font-size:22px">📦</div>
+          <div class="fw8 cg" style="font-size:36px;margin:4px 0">${stockCount}</div>
+          <div class="fs11 fw7 c3" style="text-transform:uppercase">Còn trong kho</div>
+          <div class="fs11 c3 mt1">${esc(p.unit || 'cái')}</div>
+        </div>
+        <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:12px;padding:20px;text-align:center">
+          <div style="font-size:22px">📤</div>
+          <div class="fw8 cr" style="font-size:36px;margin:4px 0">${exportedCount}</div>
+          <div class="fs11 fw7 c3" style="text-transform:uppercase">Đã xuất</div>
+          <div class="fs11 c3 mt1">${esc(p.unit || 'cái')}</div>
+        </div>
+      </div>
+      <div style="background:#f0fdf4;border:1px dashed #86efac;border-radius:12px;padding:14px;text-align:center">
+        <span class="badge" style="background:#dcfce7;color:#16a34a;border:1px solid #86efac;font-size:12px;padding:4px 12px">📋 Sản phẩm quản lý theo số lượng (không có Serial)</span>
+        <p class="fs12 c3 mt2">Sản phẩm này không có mã serial. Nhập/xuất kho bằng số lượng trực tiếp.</p>
+      </div>
+    `;
+  }
   document.getElementById('pm-add-btn').onclick = () => { closeModal('mo-product'); openAddSerial(pid); };
   openModal('mo-product');
 }
@@ -1458,14 +1493,21 @@ function renderImportItems() {
   if (importItems.length === 0) { c.innerHTML = `<div class="empty"><div class="empty-icon">📦</div><p>Nhấn "➕ Thêm sản phẩm" để bắt đầu</p></div>`; return; }
   c.innerHTML = importItems.map((item, idx) => {
     const p = getProduct(item.productId);
+    const hasSerial = item.useSerial !== false; // mặc định dùng serial
     return `<div class="item-row">
       <div class="flex ic jb mb2">
         <div class="flex ic gap2 flex-wrap">
           <span class="badge b-imp fs11">${esc(p?.code || '')}</span>
           <span class="fw7">${esc(p?.name?.substring(0, 50) || '')} <span class="c3">(${esc(p?.unit || '')})</span></span>
         </div>
-        <button class="btn btn-ghost btn-xs" onclick="removeImportItem(${idx})">🗑️ Xóa</button>
+        <div class="flex ic gap2">
+          <label class="flex ic gap1 fs12" style="cursor:pointer">
+            <input type="checkbox" ${!hasSerial ? 'checked' : ''} onchange="toggleImportSerial(${idx}, !this.checked)" /> Không có Serial
+          </label>
+          <button class="btn btn-ghost btn-xs" onclick="removeImportItem(${idx})">🗑️ Xóa</button>
+        </div>
       </div>
+      ${hasSerial ? `
       <div class="scan-line-box mb2">
         <label>🔢 Quét / Dán mã Serial <span class="c3">— quét mã vạch, gõ tay hoặc dán (Ctrl+V) cột từ Excel</span></label>
         <input type="text" id="imp-scan-${idx}" class="scan-line-input" placeholder="Quét / gõ serial hoặc dán cột từ Excel..."
@@ -1475,8 +1517,27 @@ function renderImportItems() {
       </div>
       <div class="chip-grid mb2" id="imp-chips-${idx}">${importChipsHtml(idx)}</div>
       <div class="fs12" id="imp-cnt-${idx}">${importCountHtml(idx)}</div>
+      ` : `
+      <div class="scan-line-box mb2" style="background:#f0fdf4;border-color:#a7f3d0">
+        <label style="color:#059669;font-weight:700">📦 Số lượng nhập kho (không có serial)</label>
+        <div class="flex ic gap2 mt2">
+          <input type="number" class="fi" id="imp-qty-${idx}" value="${item.qty || 1}" min="1" style="width:120px;font-size:18px;font-weight:800;text-align:center"
+            onchange="importItems[${idx}].qty = Number(this.value) || 1" />
+          <span class="fs12 c3">${esc(p?.unit || 'cái')}</span>
+        </div>
+        <div class="fs12 cg fw7 mt2">✅ ${item.qty || 1} ${esc(p?.unit || 'cái')} sẽ được cộng vào tồn kho</div>
+      </div>
+      `}
     </div>`;
   }).join('');
+}
+
+function toggleImportSerial(idx, useSerial) {
+  importItems[idx].useSerial = useSerial;
+  importItems[idx].serials = [];
+  importItems[idx].qty = 1;
+  renderImportItems();
+  if (useSerial) setTimeout(() => document.getElementById(`imp-scan-${idx}`)?.focus(), 100);
 }
 
 function importChipsHtml(idx) {
@@ -1502,7 +1563,7 @@ function confirmImportProduct() {
   const pid = document.getElementById('imp-psel').value;
   if (!pid) { toast('Chọn sản phẩm', 'wrn'); return; }
   if (importItems.find(i => i.productId === pid)) { toast('Đã có sản phẩm này', 'wrn'); closeModal('mo-imp-product'); return; }
-  importItems.push({ productId: pid, serials: [] });
+  importItems.push({ productId: pid, serials: [], useSerial: true, qty: 1 });
   closeModal('mo-imp-product'); renderImportItems();
   const newIdx = importItems.length - 1;
   setTimeout(() => document.getElementById(`imp-scan-${newIdx}`)?.focus(), 150);
@@ -1516,15 +1577,36 @@ function submitImport() {
   const note = document.getElementById('imp-note')?.value?.trim() || '';
   if (!date) { toast('Chọn ngày nhập', 'wrn'); return; }
   if (importItems.length === 0) { toast('Chưa có sản phẩm', 'wrn'); return; }
-  const total = importItems.reduce((s, i) => s + i.serials.length, 0);
-  if (total === 0) { toast('Chưa có serial nào', 'wrn'); return; }
-  if (!confirm(`Xác nhận Nhập kho ${total} serial?\nSerial sẽ được cộng vào tồn kho.`)) return;
+
+  // Kiểm tra có hàng nào chưa nhập
+  const hasSerial = importItems.some(i => i.useSerial !== false && i.serials.length > 0);
+  const hasQty = importItems.some(i => i.useSerial === false && (i.qty || 0) > 0);
+  if (!hasSerial && !hasQty) { toast('Chưa có serial hoặc số lượng nào', 'wrn'); return; }
+
+  let totalSerial = importItems.filter(i => i.useSerial !== false).reduce((s, i) => s + i.serials.length, 0);
+  let totalQty = importItems.filter(i => i.useSerial === false).reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  const totalAll = totalSerial + totalQty;
+
+  const confirmMsg = [
+    totalSerial > 0 ? `${totalSerial} serial` : '',
+    totalQty > 0 ? `${totalQty} sản phẩm (không serial)` : ''
+  ].filter(Boolean).join(' + ');
+  if (!confirm(`Xác nhận Nhập kho ${confirmMsg}?\nSử liệu sẽ được cộng vào tồn kho.`)) return;
 
   const docId = genId('IMP');
   const docNumber = genDocNum('BBNHAP', db.importDocs);
-  importItems.forEach(item => item.serials.forEach(sn => {
+
+  // Xử lý hàng có serial
+  importItems.filter(i => i.useSerial !== false).forEach(item => item.serials.forEach(sn => {
     db.serials[sn] = { productId: item.productId, status: 'in-stock', addedDate: date, importDocId: docId, exportDocId: null, exportDate: null, exportTo: null, exportReceiver: null };
   }));
+
+  // Xử lý hàng không serial — cộng số lượng vào initialStock
+  importItems.filter(i => i.useSerial === false).forEach(item => {
+    const p = getProduct(item.productId);
+    if (p) p.initialStock = (p.initialStock || 0) + (Number(item.qty) || 0);
+  });
+
   db.importDocs.push({
     id: docId,
     docNumber,
@@ -1544,7 +1626,7 @@ function submitImport() {
   const ocrRes = document.getElementById('imp-ocr-result');
   if (ocrRes) ocrRes.innerHTML = '';
   renderImportItems();
-  toast(`✅ Nhập kho thành công! ${total} serial — ${docNumber}`, 'ok');
+  toast(`✅ Nhập kho thành công! ${confirmMsg} — ${docNumber}`, 'ok');
   setTimeout(() => { if (confirm('Nhập kho thành công!\nXem lịch sử biên bản?')) { nav('all-history'); } }, 600);
 }
 
@@ -1559,16 +1641,20 @@ function renderExportItems() {
   const c = document.getElementById('exp-items');
   if (exportItems.length === 0) { c.innerHTML = `<div class="empty"><div class="empty-icon">📤</div><p>Nhấn "➕ Thêm sản phẩm" để bắt đầu</p></div>`; return; }
   c.innerHTML = exportItems.map((item, idx) => {
-    const p = getProduct(item.productId); const inS = getSerialsOf(item.productId, 'in-stock');
+    const p = getProduct(item.productId);
+    const inS = getSerialsOf(item.productId, 'in-stock');
+    const qtyStock = getStockCount(item.productId);
+    const hasSerialStock = inS.length > 0;
     return `<div class="item-row">
       <div class="flex ic jb mb2">
         <div class="flex ic gap2 flex-wrap">
           <span class="badge b-exp fs11">${esc(p?.code || '')}</span>
           <span class="fw7">${esc(p?.name?.substring(0, 48) || '')}</span>
-          <span class="badge b-in">${inS.length} còn kho</span>
+          <span class="badge b-in">${qtyStock} còn kho</span>
         </div>
         <button class="btn btn-ghost btn-xs" onclick="removeExportItem(${idx})" style="margin-left:8px">🗑️ Xóa</button>
       </div>
+      ${hasSerialStock ? `
       <div class="scan-line-box mb2">
         <label>🔢 Quét / Dán mã Serial cần xuất <span class="c3">— quét mã vạch, gõ tay hoặc dán (Ctrl+V) cột từ Excel</span></label>
         <input type="text" id="exp-scan-${idx}" class="scan-line-input" placeholder="Quét / gõ serial hoặc dán cột từ Excel..."
@@ -1580,6 +1666,18 @@ function renderExportItems() {
       <div class="chip-grid mb2" style="max-height:110px" id="exp-stock-${idx}">${exportStockHtml(idx)}</div>
       <div class="chip-grid mb2" id="exp-chips-${idx}">${exportChipsHtml(idx)}</div>
       <div class="fs12" id="exp-cnt-${idx}">${exportCountHtml(idx)}</div>
+      ` : `
+      <div class="scan-line-box mb2" style="background:#fff7ed;border-color:#fed7aa">
+        <label style="color:#ea580c;font-weight:700">📤 Số lượng xuất (không có serial)</label>
+        <div class="fs12 c3 mb2">Tồn hiện tại: <strong>${qtyStock}</strong> ${esc(p?.unit || 'cái')}</div>
+        <div class="flex ic gap2">
+          <input type="number" class="fi" id="exp-qty-${idx}" value="${item.qty || 1}" min="1" max="${qtyStock}" style="width:120px;font-size:18px;font-weight:800;text-align:center"
+            onchange="exportItems[${idx}].qty = Math.min(Number(this.value)||1, ${qtyStock})" />
+          <span class="fs12 c3">${esc(p?.unit || 'cái')}</span>
+        </div>
+        <div class="fs12 co fw7 mt2">📤 ${item.qty || 1} ${esc(p?.unit || 'cái')} sẽ được trừ khỏi tồn kho</div>
+      </div>
+      `}
     </div>`;
   }).join('');
 }
@@ -1630,14 +1728,36 @@ function submitExport() {
   const to = document.getElementById('exp-to').value.trim();
   if (!date || !to) { toast('Điền ngày và bên nhận', 'wrn'); return; }
   if (exportItems.length === 0) { toast('Chưa có sản phẩm', 'wrn'); return; }
-  const total = exportItems.reduce((s, i) => s + i.serials.length, 0);
-  if (total === 0) { toast('Chưa chọn serial', 'wrn'); return; }
-  if (!confirm(`Xuất kho: ${total} serial cho "${to}"?\nSerial sẽ bị trừ khỏi tồn kho.`)) return;
+
+  // Phân loại: có serial và không serial
+  const snItems = exportItems.filter(i => i.serials && i.serials.length > 0);
+  const qtyItems = exportItems.filter(i => (!i.serials || i.serials.length === 0) && getStockCount(i.productId) > 0);
+  const totalSN = snItems.reduce((s, i) => s + i.serials.length, 0);
+  const totalQty = qtyItems.reduce((s, i) => s + (Number(document.getElementById(`exp-qty-${exportItems.indexOf(i)}`)?.value || i.qty || 0), 0), 0);
+
+  // Cập nhật qty từ input trước khi xuất
+  exportItems.forEach((item, idx) => {
+    const qtyInput = document.getElementById(`exp-qty-${idx}`);
+    if (qtyInput) item.qty = Number(qtyInput.value) || 1;
+  });
+
+  const hasSerialExport = snItems.length > 0;
+  const hasQtyExport = exportItems.some(i => (!i.serials || i.serials.length === 0) && (i.qty || 0) > 0 && getStockCount(i.productId) > 0);
+
+  if (!hasSerialExport && !hasQtyExport) { toast('Chưa chọn serial hoặc số lượng xuất', 'wrn'); return; }
+
+  const snCount = snItems.reduce((s, i) => s + i.serials.length, 0);
+  const qtyCount = exportItems.filter(i => !i.serials || i.serials.length === 0).reduce((s, i) => s + (i.qty || 0), 0);
+  const confirmMsg = [snCount > 0 ? `${snCount} serial` : '', qtyCount > 0 ? `${qtyCount} SP (không SN)` : ''].filter(Boolean).join(' + ');
+
+  if (!confirm(`Xuất kho: ${confirmMsg} cho "${to}"?\nSố liệu sẽ bị trừ khỏi tồn kho.`)) return;
 
   const docId = genId('EXP');
   const docNumber = genDocNum('BBXUAT', db.exportDocs);
   const recv = document.getElementById('exp-recv').value;
-  exportItems.forEach(item => item.serials.forEach(sn => {
+
+  // Xử lý serial items
+  exportItems.filter(i => i.serials && i.serials.length > 0).forEach(item => item.serials.forEach(sn => {
     if (!db.serials[sn]) {
       db.serials[sn] = { productId: item.productId, addedDate: date };
     }
@@ -1647,14 +1767,26 @@ function submitExport() {
     db.serials[sn].exportTo = to;
     db.serials[sn].exportReceiver = recv;
   }));
-  db.exportDocs.push({ id: docId, docNumber, date, toParty: to, receiver: recv, signatory: document.getElementById('exp-sign').value, note: document.getElementById('exp-note').value, items: exportItems.map(i => ({ ...i, serials: [...i.serials] })), createdAt: new Date().toISOString() });
+
+  // Xử lý qty items (không serial): cộng vào exported
+  exportItems.filter(i => !i.serials || i.serials.length === 0).forEach(item => {
+    const p = getProduct(item.productId);
+    const qty = item.qty || 0;
+    if (p && qty > 0) {
+      const currentStock = getStockCount(p.id);
+      const actualQty = Math.min(qty, currentStock);
+      p.exported = (p.exported || 0) + actualQty;
+    }
+  });
+
+  db.exportDocs.push({ id: docId, docNumber, date, toParty: to, receiver: recv, signatory: document.getElementById('exp-sign').value, note: document.getElementById('exp-note').value, items: exportItems.map(i => ({ ...i, serials: [...(i.serials || [])] })), createdAt: new Date().toISOString() });
   save();
   exportItems = [];
   ['exp-to', 'exp-recv', 'exp-sign', 'exp-note'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('exp-date').value = today();
   document.getElementById('exp-ocr-result').innerHTML = '';
   renderExportItems();
-  toast(`✅ Xuất kho thành công! ${total} serial — ${docNumber}`, 'ok');
+  toast(`✅ Xuất kho thành công! ${confirmMsg} — ${docNumber}`, 'ok');
   setTimeout(() => { if (confirm('Xuất kho thành công!\nXem lịch sử biên bản?')) { nav('all-history'); } }, 600);
 }
 
@@ -4591,3 +4723,237 @@ document.addEventListener('DOMContentLoaded', () => {
   updateClock(); setInterval(updateClock, 1000);
   nav('dashboard');
 });
+
+// ═══════════════════════════════════════════════════════════════
+//  RENTAL — Quản Lý Máy Cho Thuê
+// ═══════════════════════════════════════════════════════════════
+
+function getRentalStatus(r) {
+  if (r.status === 'returned') return 'returned';
+  if (r.endDate && r.endDate < today()) return 'overdue';
+  return 'active';
+}
+
+function getRentalBadge(r) {
+  const st = getRentalStatus(r);
+  if (st === 'returned') return '<span class="badge-rental-returned">✅ Đã trả</span>';
+  if (st === 'overdue') return '<span class="badge-rental-overdue">🔴 Quá hạn</span>';
+  return '<span class="badge-rental-active">🔧 Đang thuê</span>';
+}
+
+function renderRentalPage() {
+  if (!db.rentals) db.rentals = [];
+  const q = (document.getElementById('rental-search')?.value || '').toLowerCase();
+  const stFilter = document.getElementById('rental-status-filter')?.value || 'all';
+  const todayStr = today();
+
+  // Stats bar
+  const active = db.rentals.filter(r => r.status !== 'returned').length;
+  const overdue = db.rentals.filter(r => r.status !== 'returned' && r.endDate < todayStr).length;
+  const returned = db.rentals.filter(r => r.status === 'returned').length;
+  const totalRevenue = db.rentals.reduce((s, r) => s + (Number(r.price) || 0), 0);
+
+  const statsEl = document.getElementById('rental-stats-bar');
+  if (statsEl) {
+    statsEl.innerHTML = `
+      <div class="stat c-orange" style="cursor:default">
+        <span class="stat-icon">🔧</span>
+        <div class="stat-val">${active}</div>
+        <div class="stat-lbl">Đang cho thuê</div>
+      </div>
+      <div class="stat c-red" style="cursor:default">
+        <span class="stat-icon">⚠️</span>
+        <div class="stat-val">${overdue}</div>
+        <div class="stat-lbl">Quá hạn chưa trả</div>
+      </div>
+      <div class="stat c-green" style="cursor:default">
+        <span class="stat-icon">✅</span>
+        <div class="stat-val">${returned}</div>
+        <div class="stat-lbl">Đã thu hồi</div>
+      </div>
+      <div class="stat c-purple" style="cursor:default">
+        <span class="stat-icon">💰</span>
+        <div class="stat-val" style="font-size:22px">${fmtMoney(totalRevenue)}</div>
+        <div class="stat-lbl">Tổng tiền thuê</div>
+      </div>`;
+  }
+
+  let list = db.rentals.filter(r => {
+    const st = getRentalStatus(r);
+    if (stFilter !== 'all' && st !== stFilter) return false;
+    if (q) {
+      const hay = (r.customer + r.docNum + (r.productName || '') + (r.serial || '') + (r.phone || '')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    // Quá hạn lên đầu, rồi đang thuê, rồi đã trả
+    const order = { overdue: 0, active: 1, returned: 2 };
+    const sa = getRentalStatus(a), sb = getRentalStatus(b);
+    if (order[sa] !== order[sb]) return order[sa] - order[sb];
+    return (b.startDate || '').localeCompare(a.startDate || '');
+  });
+
+  const countEl = document.getElementById('rental-count');
+  if (countEl) countEl.textContent = `${list.length} hợp đồng`;
+
+  const tbody = document.getElementById('rental-tbody');
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" class="tc c3" style="padding:45px">
+      <div style="font-size:32px;margin-bottom:8px">🔧</div>
+      <div style="font-weight:700;font-size:14px">Chưa có hợp đồng cho thuê nào</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px">Bấm "Thêm hợp đồng thuê" để bắt đầu</div>
+      <button class="btn btn-primary btn-sm mt3" onclick="openRentalModal()">➕ Thêm hợp đồng thuê</button>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map((r, i) => {
+    const st = getRentalStatus(r);
+    const rowCls = st === 'overdue' ? 'row-overdue' : st === 'returned' ? 'row-returned' : '';
+    const daysLeft = r.endDate ? Math.ceil((new Date(r.endDate) - new Date(todayStr)) / 86400000) : null;
+    const daysHtml = daysLeft !== null && st !== 'returned'
+      ? `<div style="font-size:10.5px;margin-top:2px;${daysLeft < 0 ? 'color:#e11d48;font-weight:700' : daysLeft <= 3 ? 'color:#ea580c;font-weight:600' : 'color:var(--text3)'}">${daysLeft < 0 ? `Trễ ${Math.abs(daysLeft)} ngày` : daysLeft === 0 ? 'Hết hạn hôm nay!' : `Còn ${daysLeft} ngày`}</div>` : '';
+
+    return `<tr class="${rowCls}">
+      <td class="c3 fs12">${i + 1}</td>
+      <td><span class="td-code">${esc(r.docNum || '')}</span></td>
+      <td>
+        <div class="fw7">${esc(r.customer || '')}</div>
+        ${r.phone ? `<div class="fs11 c3">📞 ${esc(r.phone)}</div>` : ''}
+      </td>
+      <td>
+        <div class="fw6">${esc(r.productName || '')}</div>
+        ${r.serial ? `<div class="fs11 c3 fmono">SN: ${esc(r.serial)}</div>` : ''}
+        <div class="fs11 c3">SL: ${r.qty || 1}</div>
+      </td>
+      <td class="fs12">${fmtDate(r.startDate)}</td>
+      <td class="fs12">${fmtDate(r.endDate)}${daysHtml}</td>
+      <td>${getRentalBadge(r)}</td>
+      <td class="fw7 cb">${r.price ? fmtMoney(r.price) : '—'}</td>
+      <td>
+        <div class="flex gap1 flex-wrap">
+          ${st !== 'returned' ? `<button class="btn btn-success btn-xs" onclick="returnRental('${esc(r.id)}')">✅ Thu hồi</button>` : ''}
+          <button class="btn btn-ghost btn-xs" onclick="editRental('${esc(r.id)}')">✏️</button>
+          <button class="btn btn-ghost btn-xs" onclick="deleteRental('${esc(r.id)}')">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openRentalModal(editId) {
+  if (!db.rentals) db.rentals = [];
+  document.getElementById('rental-edit-id').value = editId || '';
+
+  // Populate product dropdown
+  const sel = document.getElementById('rental-product');
+  sel.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
+    db.products.map(p => {
+      const stock = getStockCount(p.id);
+      return `<option value="${esc(p.id)}" data-name="${esc(p.name)}">[${esc(p.code)}] ${esc(p.name.substring(0, 50))} (tồn: ${stock})</option>`;
+    }).join('');
+
+  if (editId) {
+    const r = db.rentals.find(x => x.id === editId);
+    if (r) {
+      document.getElementById('rental-docnum').value = r.docNum || '';
+      document.getElementById('rental-start').value = r.startDate || '';
+      document.getElementById('rental-end').value = r.endDate || '';
+      document.getElementById('rental-price').value = r.price || '';
+      document.getElementById('rental-customer').value = r.customer || '';
+      document.getElementById('rental-phone').value = r.phone || '';
+      document.getElementById('rental-qty').value = r.qty || 1;
+      document.getElementById('rental-serial').value = r.serial || '';
+      document.getElementById('rental-note').value = r.note || '';
+      if (r.productId) sel.value = r.productId;
+    }
+  } else {
+    // Reset form
+    document.getElementById('rental-docnum').value = 'HT-' + new Date().getFullYear() + '-' + String((db.rentals.length + 1)).padStart(3, '0');
+    document.getElementById('rental-start').value = today();
+    document.getElementById('rental-end').value = '';
+    document.getElementById('rental-price').value = '';
+    document.getElementById('rental-customer').value = '';
+    document.getElementById('rental-phone').value = '';
+    document.getElementById('rental-qty').value = 1;
+    document.getElementById('rental-serial').value = '';
+    document.getElementById('rental-note').value = '';
+  }
+  openModal('mo-rental');
+  setTimeout(() => document.getElementById('rental-customer').focus(), 120);
+}
+
+function saveRental() {
+  const editId = document.getElementById('rental-edit-id').value;
+  const docNum = document.getElementById('rental-docnum').value.trim();
+  const startDate = document.getElementById('rental-start').value;
+  const endDate = document.getElementById('rental-end').value;
+  const customer = document.getElementById('rental-customer').value.trim();
+  const productId = document.getElementById('rental-product').value;
+
+  if (!docNum) { toast('Nhập số hợp đồng', 'wrn'); return; }
+  if (!startDate) { toast('Chọn ngày thuê', 'wrn'); return; }
+  if (!endDate) { toast('Chọn hạn trả', 'wrn'); return; }
+  if (!customer) { toast('Nhập tên khách thuê', 'wrn'); return; }
+  if (!productId) { toast('Chọn thiết bị cho thuê', 'wrn'); return; }
+
+  const p = getProduct(productId);
+  const rentalData = {
+    id: editId || genId('RENT'),
+    docNum,
+    startDate,
+    endDate,
+    price: Number(document.getElementById('rental-price').value) || 0,
+    customer,
+    phone: document.getElementById('rental-phone').value.trim(),
+    productId,
+    productName: p ? `[${p.code}] ${p.name}` : '',
+    qty: Number(document.getElementById('rental-qty').value) || 1,
+    serial: document.getElementById('rental-serial').value.trim(),
+    note: document.getElementById('rental-note').value.trim(),
+    status: editId ? (db.rentals.find(r => r.id === editId)?.status || 'active') : 'active',
+    createdAt: editId ? (db.rentals.find(r => r.id === editId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+  };
+
+  if (editId) {
+    const idx = db.rentals.findIndex(r => r.id === editId);
+    if (idx >= 0) db.rentals[idx] = rentalData;
+  } else {
+    db.rentals.push(rentalData);
+  }
+
+  save();
+  closeModal('mo-rental');
+  toast(`✅ Đã lưu hợp đồng thuê ${docNum} — ${customer}`, 'ok');
+  renderRentalPage();
+  if (document.getElementById('page-dashboard')?.classList.contains('active')) renderDashboard();
+}
+
+function editRental(id) {
+  openRentalModal(id);
+}
+
+function returnRental(id) {
+  const r = db.rentals.find(x => x.id === id);
+  if (!r) return;
+  if (!confirm(`Xác nhận thu hồi máy từ "${r.customer}"?\nThiết bị: ${r.productName}`)) return;
+  r.status = 'returned';
+  r.returnedDate = today();
+  save();
+  toast(`✅ Đã thu hồi máy từ ${r.customer}`, 'ok');
+  renderRentalPage();
+  if (document.getElementById('page-dashboard')?.classList.contains('active')) renderDashboard();
+}
+
+function deleteRental(id) {
+  const r = db.rentals.find(x => x.id === id);
+  if (!r) return;
+  if (!confirm(`Xóa hợp đồng thuê "${r.docNum}" — ${r.customer}?`)) return;
+  db.rentals = db.rentals.filter(x => x.id !== id);
+  save();
+  toast('Đã xóa hợp đồng thuê', 'ok');
+  renderRentalPage();
+  if (document.getElementById('page-dashboard')?.classList.contains('active')) renderDashboard();
+}
+

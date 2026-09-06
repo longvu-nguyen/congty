@@ -1,10 +1,10 @@
 // Service Worker cho PWA Kho Hàng Pro
-const CACHE_NAME = 'kho-pro-cache-v5';
+const CACHE_NAME = 'kho-pro-cache-v18';
 const ASSETS = [
   './index.html',
-  './style.css?v=5.0',
-  './data.js?v=4.0',
-  './app.js?v=4.0',
+  './style.css?v=18.0',
+  './data.js?v=18.0',
+  './app.js?v=18.0',
   './manifest.json',
   './app_logo.png'
 ];

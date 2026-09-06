@@ -94,6 +94,6 @@ const INITIAL_COMPANIES = [
 
 // ─── NHÂN VIÊN ────────────────────────────────────────────────────
 const INITIAL_EMPLOYEES = [
-  { id: 'NV001', name: 'Nguyễn Văn A', position: 'Giám đốc', department: 'Ban Giám Đốc', phone: '' },
-  { id: 'NV002', name: 'Trần Thị B', position: 'Kế toán trưởng', department: 'Kế toán', phone: '' },
+  { id: 'NV001', name: 'Trương Ngọc Hoà', position: 'Kỹ Thuật Viên ', department: 'Phòng Kỹ Thuật', phone: '' },
+  { id: 'NV002', name: 'Nguyễn Long Vũ', position: 'Kỹ Thuật Viên', department: 'PHòng Kỹ Thuật', phone: '' },
 ];
