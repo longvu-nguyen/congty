@@ -137,7 +137,7 @@
           <span class="sb-icon">🖨️</span><span>In Tem Barcode & QR</span>
           <span class="sb-badge green">TEM</span>
         </div>
-        
+
         <div class="sb-item" id="nav-backup" onclick="nav('backup')">
           <span class="sb-icon">💾</span><span>Sao lưu & Đám mây</span>
           <span class="sb-badge green">CLOUD</span>
@@ -174,7 +174,8 @@
         <div class="pb">
           <!-- Quick Actions Bar -->
           <div class="card mb3" style="background:#ffffff;border:1px solid #e2e8f0;box-shadow:var(--shadow-xs)">
-            <div class="card-bd" style="padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div class="card-bd"
+              style="padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
               <div class="flex ic gap2">
                 <span style="font-size:14px;font-weight:800;color:var(--text1)">⚡ Thao Tác Nhanh:</span>
                 <span class="fs12 c3">Lập phiếu kho & báo giá trong 1-click</span>
@@ -288,7 +289,7 @@
                 <option value="Tầng 1">🏢 Tầng 1</option>
                 <option value="Tầng 2">🏢 Tầng 2</option>
                 <option value="Tầng 3">🏢 Tầng 3</option>
-                
+
               </select>
 
               <select class="fs" id="inv-sort" onchange="renderInventory()" style="width:auto">
@@ -1288,7 +1289,7 @@
                     <option value="Tầng 1">🏢 Tầng 1</option>
                     <option value="Tầng 2">🏢 Tầng 2</option>
                     <option value="Tầng 3">🏢 Tầng 3</option>
-                    
+
                   </select>
                 </div>
               </div>
@@ -1432,7 +1433,7 @@
                     <option value="Tầng 1">🏢 Tầng 1</option>
                     <option value="Tầng 2">🏢 Tầng 2</option>
                     <option value="Tầng 3">🏢 Tầng 3</option>
-                    
+
                     <option value="all">Tất cả tầng kho</option>
                   </select>
                 </div>
@@ -1474,7 +1475,8 @@
         <div class="ph">
           <div>
             <div class="ph-title">💾 Hệ Thống Sao Lưu Dữ Liệu Định Kỳ & Firebase</div>
-            <div class="ph-sub">Tự động sao lưu dữ liệu kho hàng, serial, chứng từ và kết nối Google Firebase Realtime</div>
+            <div class="ph-sub">Tự động sao lưu dữ liệu kho hàng, serial, chứng từ và kết nối Google Firebase Realtime
+            </div>
           </div>
           <div class="ph-actions">
             <button class="btn btn-primary" onclick="triggerManualBackupSnapshot()">⚡ Sao Lưu Ngay Lập Tức</button>
@@ -1484,12 +1486,15 @@
         <div class="pb">
 
           <div class="card mb3" style="background:linear-gradient(135deg,#eff6ff 0%,#f5f3ff 100%);border-color:#bfdbfe">
-            <div class="card-bd" style="padding:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+            <div class="card-bd"
+              style="padding:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
               <div class="flex ic gap3">
                 <div style="font-size:36px">⏰</div>
                 <div>
-                  <div style="font-size:16px;font-weight:800;color:#1d4ed8">Tự Động Sao Lưu Hàng Ngày (Auto-Backup)</div>
-                  <div style="font-size:12.5px;color:#334155;margin-top:2px" id="bk-schedule-status">Trạng thái: Đang hoạt động · Tự động chụp bản sao lưu mỗi 24 giờ</div>
+                  <div style="font-size:16px;font-weight:800;color:#1d4ed8">Tự Động Sao Lưu Hàng Ngày (Auto-Backup)
+                  </div>
+                  <div style="font-size:12.5px;color:#334155;margin-top:2px" id="bk-schedule-status">Trạng thái: Đang
+                    hoạt động · Tự động chụp bản sao lưu mỗi 24 giờ</div>
                 </div>
               </div>
               <div class="flex ic gap2">
@@ -1500,18 +1505,23 @@
 
           <!-- Firebase Live Sync Configuration Card -->
           <div class="card mb3">
-            <div class="card-hd"><span class="card-hd-title">☁️ Cấu Hình Đồng Bộ Đám Mây Google Firebase (Realtime Multi-Device Sync)</span></div>
+            <div class="card-hd"><span class="card-hd-title">☁️ Cấu Hình Đồng Bộ Đám Mây Google Firebase (Realtime
+                Multi-Device Sync)</span></div>
             <div class="card-bd" style="padding:18px">
-              <p class="fs13 c3 mb3">Nhập mã Firebase Config để tự động đồng bộ dữ liệu Realtime 100% giữa tất cả máy tính & điện thoại trong công ty.</p>
+              <p class="fs13 c3 mb3">Nhập mã Firebase Config để tự động đồng bộ dữ liệu Realtime 100% giữa tất cả máy
+                tính & điện thoại trong công ty.</p>
 
               <div class="fg mb2">
                 <label class="flabel">Dán mã Firebase Config (Dạng JSON hoặc Object Javascript)</label>
-                <textarea class="fi" id="fb-config-input" rows="5" placeholder='{\n  "apiKey": "AIzaSy...",\n  "authDomain": "khohang-2026.firebaseapp.com",\n  "projectId": "khohang-2026",\n  "storageBucket": "khohang-2026.appspot.com",\n  "messagingSenderId": "123456789",\n  "appId": "1:123456789:web:abcdef"\n}' style="font-family:monospace;font-size:12px"></textarea>
+                <textarea class="fi" id="fb-config-input" rows="5"
+                  placeholder='{\n  "apiKey": "AIzaSy...",\n  "authDomain": "khohang-2026.firebaseapp.com",\n  "projectId": "khohang-2026",\n  "storageBucket": "khohang-2026.appspot.com",\n  "messagingSenderId": "123456789",\n  "appId": "1:123456789:web:abcdef"\n}'
+                  style="font-family:monospace;font-size:12px"></textarea>
               </div>
 
               <div class="flex ic gap2 mt3">
                 <button class="btn btn-primary" onclick="saveFirebaseConfigFromUI()">💾 Lưu & Kết Nối Firebase</button>
-                <span id="fb-connect-status" class="fs12 fw7 ml2" style="color:#059669">☁️ Trạng thái: Sẵn sàng kết nối</span>
+                <span id="fb-connect-status" class="fs12 fw7 ml2" style="color:#059669">☁️ Trạng thái: Sẵn sàng kết
+                  nối</span>
               </div>
             </div>
           </div>
@@ -1793,32 +1803,43 @@
         <input type="hidden" id="rental-edit-id" />
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
           <div class="fg"><label class="flabel">Số hợp đồng <span class="req">*</span></label>
-            <input type="text" class="fi" id="rental-docnum" placeholder="Ví dụ: HT-2026-001" /></div>
+            <input type="text" class="fi" id="rental-docnum" placeholder="Ví dụ: HT-2026-001" />
+          </div>
           <div class="fg"><label class="flabel">Ngày thuê <span class="req">*</span></label>
-            <input type="date" class="fi" id="rental-start" /></div>
+            <input type="date" class="fi" id="rental-start" />
+          </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
           <div class="fg"><label class="flabel">Hạn trả <span class="req">*</span></label>
-            <input type="date" class="fi" id="rental-end" /></div>
+            <input type="date" class="fi" id="rental-end" />
+          </div>
           <div class="fg"><label class="flabel">Tiền thuê (đ)</label>
-            <input type="number" class="fi" id="rental-price" placeholder="0" min="0" /></div>
+            <input type="number" class="fi" id="rental-price" placeholder="0" min="0" />
+          </div>
         </div>
         <div class="fg"><label class="flabel">Tên khách thuê <span class="req">*</span></label>
-          <input type="text" class="fi" id="rental-customer" list="dl-companies" autocomplete="off" placeholder="Tên khách hàng hoặc công ty..." /></div>
+          <input type="text" class="fi" id="rental-customer" list="dl-companies" autocomplete="off"
+            placeholder="Tên khách hàng hoặc công ty..." />
+        </div>
         <div class="fg"><label class="flabel">Số điện thoại</label>
-          <input type="text" class="fi" id="rental-phone" placeholder="Số điện thoại liên hệ" /></div>
+          <input type="text" class="fi" id="rental-phone" placeholder="Số điện thoại liên hệ" />
+        </div>
         <div class="fg"><label class="flabel">Thiết bị cho thuê <span class="req">*</span></label>
           <select class="fs" id="rental-product">
             <option value="">-- Chọn sản phẩm --</option>
-          </select></div>
+          </select>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
           <div class="fg"><label class="flabel">Số lượng</label>
-            <input type="number" class="fi" id="rental-qty" value="1" min="1" /></div>
+            <input type="number" class="fi" id="rental-qty" value="1" min="1" />
+          </div>
           <div class="fg"><label class="flabel">Số Serial (nếu có)</label>
-            <input type="text" class="fi" id="rental-serial" placeholder="VD: MSI123456" /></div>
+            <input type="text" class="fi" id="rental-serial" placeholder="VD: MSI123456" />
+          </div>
         </div>
         <div class="fg"><label class="flabel">Ghi chú</label>
-          <textarea class="fta" id="rental-note" rows="2" placeholder="Tình trạng máy, điều kiện thuê..."></textarea></div>
+          <textarea class="fta" id="rental-note" rows="2" placeholder="Tình trạng máy, điều kiện thuê..."></textarea>
+        </div>
       </div>
       <div class="mo-ft">
         <button class="btn btn-primary" onclick="saveRental()">💾 Lưu hợp đồng</button>
@@ -1844,7 +1865,7 @@
             <option value="Tầng 1">🏢 Tầng 1</option>
             <option value="Tầng 2">🏢 Tầng 2</option>
             <option value="Tầng 3">🏢 Tầng 3</option>
-            
+
             <option value="custom">✏️ Vị trí khác (Nhập tự do)...</option>
           </select>
         </div>
