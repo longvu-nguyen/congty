@@ -14,13 +14,12 @@ let firebaseDb = null;
 let firebaseInitialized = false;
 
 const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBuGA4vo5BuwVUbS7Oc64AVPYbT38TKogQ",
-  authDomain: "khohang-2026.firebaseapp.com",
-  projectId: "khohang-2026",
-  storageBucket: "khohang-2026.firebasestorage.app",
-  messagingSenderId: "1087930189925",
-  appId: "1:1087930189925:web:98fd54e090bb6bcf5bde8c",
-  measurementId: "G-GVYR3TM2N6"
+  apiKey: "AIzaSyCdRISmjtxfaznshY4qxRmyZi_U6boFyjc",
+  authDomain: "khohangcongty-3c8f9.firebaseapp.com",
+  projectId: "khohangcongty-3c8f9",
+  storageBucket: "khohangcongty-3c8f9.firebasestorage.app",
+  messagingSenderId: "33686717884",
+  appId: "1:33686717884:web:4c189de386fbd864d517b9"
 };
 
 function initFirebaseSync(config) {
@@ -236,10 +235,10 @@ function getStockByFloor(pid) {
     if (p.floorStock) {
       let remaining = getStockCount(pid);
       for (const f of Object.keys(p.floorStock)) {
-         let qty = p.floorStock[f];
-         if (qty > remaining) qty = remaining;
-         if (qty > 0) floors[f] = qty;
-         remaining -= qty;
+        let qty = p.floorStock[f];
+        if (qty > remaining) qty = remaining;
+        if (qty > 0) floors[f] = qty;
+        remaining -= qty;
       }
     } else if (getStockCount(pid) > 0) {
       floors[p.location || 'Tầng 1'] = getStockCount(pid);
@@ -870,8 +869,8 @@ function renderDashboard() {
       brandStats[brand].stock += stock;
     });
 
-    const sortedCats = Object.entries(catStats).sort((a,b) => b[1].stock - a[1].stock);
-    const sortedBrands = Object.entries(brandStats).sort((a,b) => b[1].stock - a[1].stock);
+    const sortedCats = Object.entries(catStats).sort((a, b) => b[1].stock - a[1].stock);
+    const sortedBrands = Object.entries(brandStats).sort((a, b) => b[1].stock - a[1].stock);
 
     // Top 6 products with highest stock
     const inStockItems = allEnriched.filter(x => x.stock > 0).sort((a, b) => b.stock - a.stock);
@@ -4733,7 +4732,7 @@ function saveFirebaseConfigFromUI() {
           configObj = JSON.parse(jsonMatch[0].replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":').replace(/'/g, '"'));
         }
       }
-    } catch(e) {}
+    } catch (e) { }
   }
 
   if (!configObj || !configObj.apiKey) {
@@ -4744,7 +4743,7 @@ function saveFirebaseConfigFromUI() {
   initFirebaseSync(configObj);
   toast('☁️ Đã lưu cấu hình và kết nối thành công với Google Firebase!', 'ok');
   const statusEl = document.getElementById('fb-connect-status');
-  if (statusEl) statusEl.innerHTML = '☁️ <strong style="color:#10b981">Đã kết nối Firebase Realtime Live (khohang-2026)</strong>';
+  if (statusEl) statusEl.innerHTML = `☁️ <strong style="color:#10b981">Đã kết nối Firebase Realtime Live (${configObj.projectId})</strong>`;
 }
 
 function loadSavedFirebaseConfig() {
@@ -4753,11 +4752,13 @@ function loadSavedFirebaseConfig() {
   if (saved) {
     try {
       configObj = JSON.parse(saved);
-    } catch(e) {}
+    } catch (e) { }
   }
   initFirebaseSync(configObj);
   const statusEl = document.getElementById('fb-connect-status');
-  if (statusEl) statusEl.innerHTML = '☁️ <strong style="color:#10b981">Đã kết nối Firebase Realtime Live (khohang-2026)</strong>';
+  if (statusEl) statusEl.innerHTML = `☁️ <strong style="color:#10b981">Đã kết nối Firebase Realtime Live (${configObj.projectId})</strong>`;
+
+
   const inputEl = document.getElementById('fb-config-input');
   if (inputEl && !inputEl.value) inputEl.value = JSON.stringify(configObj, null, 2);
 }
