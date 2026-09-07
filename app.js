@@ -221,6 +221,33 @@ function getStockCount(pid) {
   // Sản phẩm không serial: dùng initialStock - exported
   return Math.max(0, (p.initialStock || 0) - (p.exported || 0));
 }
+function getStockByFloor(pid) {
+  const p = getProduct(pid);
+  if (!p) return {};
+  const inStockSerials = Object.values(db.serials).filter(s => s.productId === pid && s.status === 'in-stock');
+  const floors = {};
+  if (inStockSerials.length > 0) {
+    inStockSerials.forEach(s => {
+      const f = s.floor || p.location || 'Tầng 1';
+      floors[f] = (floors[f] || 0) + 1;
+    });
+  } else {
+    // Không có serial trong kho
+    if (p.floorStock) {
+      let remaining = getStockCount(pid);
+      for (const f of Object.keys(p.floorStock)) {
+         let qty = p.floorStock[f];
+         if (qty > remaining) qty = remaining;
+         if (qty > 0) floors[f] = qty;
+         remaining -= qty;
+      }
+    } else if (getStockCount(pid) > 0) {
+      floors[p.location || 'Tầng 1'] = getStockCount(pid);
+    }
+  }
+  return floors;
+}
+
 function getExportedCount(pid) {
   const p = getProduct(pid);
   const serials = Object.values(db.serials).filter(s => s.productId === pid);
@@ -1494,8 +1521,12 @@ function renderImportItems() {
   c.innerHTML = importItems.map((item, idx) => {
     const p = getProduct(item.productId);
     const hasSerial = item.useSerial !== false; // mặc định dùng serial
+    const stockByFloor = getStockByFloor(item.productId);
+    const floorStr = Object.entries(stockByFloor).filter(([f, q]) => q > 0).map(([f, q]) => `${f}: ${q}`).join(' | ');
+    const stockInfo = floorStr ? `<div class="fs12 cb mt1 mb2">📦 Đang tồn kho: ${floorStr}</div>` : `<div class="fs12 c3 mt1 mb2">📦 Chưa có hàng tồn</div>`;
+
     return `<div class="item-row">
-      <div class="flex ic jb mb2">
+      <div class="flex ic jb mb1">
         <div class="flex ic gap2 flex-wrap">
           <span class="badge b-imp fs11">${esc(p?.code || '')}</span>
           <span class="fw7">${esc(p?.name?.substring(0, 50) || '')} <span class="c3">(${esc(p?.unit || '')})</span></span>
@@ -1506,6 +1537,16 @@ function renderImportItems() {
           </label>
           <button class="btn btn-ghost btn-xs" onclick="removeImportItem(${idx})">🗑️ Xóa</button>
         </div>
+      </div>
+      ${stockInfo}
+      <div class="fg mb2" style="max-width:200px">
+        <label class="flabel fs12">Tầng lưu trữ</label>
+        <select class="fi fi-sm" onchange="importItems[${idx}].floor = this.value">
+          <option value="Tầng 1" ${item.floor === 'Tầng 1' ? 'selected' : ''}>Tầng 1</option>
+          <option value="Tầng 2" ${item.floor === 'Tầng 2' ? 'selected' : ''}>Tầng 2</option>
+          <option value="Tầng 3" ${item.floor === 'Tầng 3' ? 'selected' : ''}>Tầng 3</option>
+          <option value="Tầng 4" ${item.floor === 'Tầng 4' ? 'selected' : ''}>Tầng 4</option>
+        </select>
       </div>
       ${hasSerial ? `
       <div class="scan-line-box mb2">
@@ -1536,6 +1577,7 @@ function toggleImportSerial(idx, useSerial) {
   importItems[idx].useSerial = useSerial;
   importItems[idx].serials = [];
   importItems[idx].qty = 1;
+  if (!importItems[idx].floor) importItems[idx].floor = 'Tầng 1';
   renderImportItems();
   if (useSerial) setTimeout(() => document.getElementById(`imp-scan-${idx}`)?.focus(), 100);
 }
@@ -1562,8 +1604,7 @@ function openAddImportProduct() {
 function confirmImportProduct() {
   const pid = document.getElementById('imp-psel').value;
   if (!pid) { toast('Chọn sản phẩm', 'wrn'); return; }
-  if (importItems.find(i => i.productId === pid)) { toast('Đã có sản phẩm này', 'wrn'); closeModal('mo-imp-product'); return; }
-  importItems.push({ productId: pid, serials: [], useSerial: true, qty: 1 });
+  importItems.push({ productId: pid, serials: [], useSerial: true, qty: 1, floor: 'Tầng 1' });
   closeModal('mo-imp-product'); renderImportItems();
   const newIdx = importItems.length - 1;
   setTimeout(() => document.getElementById(`imp-scan-${newIdx}`)?.focus(), 150);
@@ -1598,13 +1639,18 @@ function submitImport() {
 
   // Xử lý hàng có serial
   importItems.filter(i => i.useSerial !== false).forEach(item => item.serials.forEach(sn => {
-    db.serials[sn] = { productId: item.productId, status: 'in-stock', addedDate: date, importDocId: docId, exportDocId: null, exportDate: null, exportTo: null, exportReceiver: null };
+    db.serials[sn] = { productId: item.productId, status: 'in-stock', addedDate: date, importDocId: docId, exportDocId: null, exportDate: null, exportTo: null, exportReceiver: null, floor: item.floor || 'Tầng 1' };
   }));
 
   // Xử lý hàng không serial — cộng số lượng vào initialStock
   importItems.filter(i => i.useSerial === false).forEach(item => {
     const p = getProduct(item.productId);
-    if (p) p.initialStock = (p.initialStock || 0) + (Number(item.qty) || 0);
+    if (p) {
+      p.initialStock = (p.initialStock || 0) + (Number(item.qty) || 0);
+      p.floorStock = p.floorStock || {};
+      const f = item.floor || 'Tầng 1';
+      p.floorStock[f] = (p.floorStock[f] || 0) + (Number(item.qty) || 0);
+    }
   });
 
   db.importDocs.push({
