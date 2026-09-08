@@ -1,11 +1,11 @@
-// Service Worker cho PWA Kho Hàng Pro - v19.0 (Network-First Strategy)
-const CACHE_NAME = 'kho-pro-cache-v19.0';
+// Service Worker cho PWA Kho Hàng Pro - v19.1 (Network-First Strategy)
+const CACHE_NAME = 'kho-pro-cache-v19.1';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=18.7',
-  './data.js?v=18.7',
-  './app.js?v=18.7',
+  './style.css?v=18.8',
+  './data.js?v=18.8',
+  './app.js?v=18.8',
   './manifest.json',
   './app_logo.png'
 ];
@@ -36,8 +36,6 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Chiến lược Network-First: Luôn tải mã mới nhất từ GitHub / Server.
-// Khi mất mạng / vào kho không có sóng sẽ tự động phục hồi từ Cache!
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = e.request.url;

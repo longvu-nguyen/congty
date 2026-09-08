@@ -760,7 +760,7 @@ function showOcrProductPicker(containerId) {
   const list = _ocrType === 'bbgh' ? bbghItems : _ocrType === 'import' ? importItems : exportItems;
   document.getElementById('ocr-picker-opts').innerHTML = list.map((item, idx) => {
     const p = getProduct(item.productId);
-    return `<option value="${idx}">[${esc(p?.code || '')}] ${esc(p?.name?.substring(0, 50) || '')}</option>`;
+    return `<option value="${idx}">[${esc(p?.code || '')}] ${esc(p?.name || '')}</option>`;
   }).join('');
   document.getElementById('ocr-picker-count').textContent = _ocrPendingSerials.length + ' serial sẽ được gán';
   document.getElementById('ocr-picker-from').textContent = containerId;
@@ -1493,7 +1493,7 @@ function confirmAddSerial() {
 // ═══════════════════════════════════════════════════════════════
 function renderSerials() {
   const sel = document.getElementById('sr-product');
-  if (sel && sel.options.length <= 1) db.products.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = `[${p.code}] ${p.name.substring(0, 45)}`; sel.appendChild(o); });
+  if (sel && sel.options.length <= 1) db.products.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = `[${p.code}] ${p.name}`; sel.appendChild(o); });
   const q = (document.getElementById('sr-search')?.value || '').toLowerCase();
   const pid = document.getElementById('sr-product')?.value || '';
   const st = document.getElementById('sr-status')?.value || 'all';
@@ -1644,7 +1644,7 @@ function renderImportItems() {
       <div class="flex ic jb mb1">
         <div class="flex ic gap2 flex-wrap">
           <span class="badge b-imp fs11">${esc(p?.code || '')}</span>
-          <span class="fw7">${esc(p?.name?.substring(0, 50) || '')} <span class="c3">(${esc(p?.unit || '')})</span></span>
+          <span class="fw7">${esc(p?.name || '')} <span class="c3">(${esc(p?.unit || '')})</span></span>
         </div>
         <div class="flex ic gap2">
           <label class="flex ic gap1 fs12" style="cursor:pointer">
@@ -1712,7 +1712,7 @@ function removeImportSerial(idx, sn) { importItems[idx].serials = importItems[id
 function removeImportItem(idx) { importItems.splice(idx, 1); renderImportItems(); }
 
 function openAddImportProduct() {
-  const opts = db.products.map(p => `<option value="${esc(p.id)}">[${esc(p.code)}] ${esc(p.name.substring(0, 58))}</option>`).join('');
+  const opts = db.products.map(p => `<option value="${esc(p.id)}">[${esc(p.code)}] ${esc(p.name)}</option>`).join('');
   document.getElementById('imp-psel').innerHTML = '<option value="">-- Chọn sản phẩm --</option>' + opts;
   openModal('mo-imp-product');
 }
@@ -1810,7 +1810,7 @@ function renderExportItems() {
       <div class="flex ic jb mb2">
         <div class="flex ic gap2 flex-wrap">
           <span class="badge b-exp fs11">${esc(p?.code || '')}</span>
-          <span class="fw7">${esc(p?.name?.substring(0, 48) || '')}</span>
+          <span class="fw7">${esc(p?.name || '')}</span>
           <span class="badge b-in">${qtyStock} còn kho</span>
         </div>
         <button class="btn btn-ghost btn-xs" onclick="removeExportItem(${idx})" style="margin-left:8px">🗑️ Xóa</button>
@@ -1869,7 +1869,7 @@ function openAddExportProduct() {
     const snCnt = getSerialsOf(p.id, 'in-stock').length;
     const cnt = getStockCount(p.id);
     const cntText = snCnt > 0 ? ` (còn ${snCnt} serial)` : (cnt > 0 ? ` (tồn ${cnt})` : '');
-    return `<option value="${esc(p.id)}">[${esc(p.code)}] ${esc(p.name.substring(0, 55))}${cntText}</option>`;
+    return `<option value="${esc(p.id)}">[${esc(p.code)}] ${esc(p.name)}${cntText}</option>`;
   }).join('');
   document.getElementById('exp-psel').innerHTML = '<option value="">-- Chọn sản phẩm --</option>' + opts;
   openModal('mo-exp-product');
@@ -2026,11 +2026,11 @@ function renderAllHistory() {
       if (doc.receiver) extraHtml += `<span>👤 ${esc(doc.receiver)}</span>`;
       if (doc.signatory) extraHtml += `<span>✍️ ${esc(doc.signatory)}</span>`;
     } else if (doc.type === 'quote') {
-      partyHtml = `<span>🏢 <strong>${esc((doc.sellerCompanyName || '').substring(0, 25))}</strong> → 🛒 <strong>${esc((doc.buyerCompanyName || '').substring(0, 28))}</strong></span>`;
+      partyHtml = `<span>🏢 <strong>${esc(doc.sellerCompanyName || '')}</strong> → 🛒 <strong>${esc(doc.buyerCompanyName || '')}</strong></span>`;
       if (doc.buyerContact) extraHtml += `<span>👤 LH: ${esc(doc.buyerContact)}</span>`;
       if (doc.sellerRepName) extraHtml += `<span>✍️ Lập bởi: ${esc(doc.sellerRepName)}</span>`;
     } else {
-      partyHtml = `<span>🏭 <strong>${esc((doc.sellerCompanyName || '').substring(0, 25))}</strong> → 🛒 <strong>${esc((doc.buyerCompanyName || '').substring(0, 25))}</strong></span>`;
+      partyHtml = `<span>🏭 <strong>${esc(doc.sellerCompanyName || '')}</strong> → 🛒 <strong>${esc(doc.buyerCompanyName || '')}</strong></span>`;
       if (doc.buyerRep) extraHtml += `<span>👤 ${esc(doc.buyerRep)}</span>`;
     }
 
@@ -2232,7 +2232,7 @@ function renderBbghItems() {
       <div class="flex ic jb mb2">
         <div class="flex ic gap2 flex-wrap">
           <span class="badge b-bbgh fs11">${esc(p?.code || '')}</span>
-          <span class="fw7 fs13">${esc((p?.name || '').substring(0, 50))}</span>
+          <span class="fw7 fs13">${esc(p?.name || '')}</span>
           <span class="badge b-in">${inS.length} còn kho</span>
         </div>
         <button class="btn btn-ghost btn-xs" onclick="removeBbghItem(${idx})">🗑️</button>
@@ -3954,7 +3954,7 @@ function renderAdminDocsTable() {
     let party = '';
     if (doc.type === 'import') party = `🏭 ${esc(doc.fromParty || '')} → Kho`;
     else if (doc.type === 'export') party = `Kho → 🛒 ${esc(doc.toParty || '')}`;
-    else party = `🏭 ${esc((doc.sellerCompanyName || '').substring(0, 20))} → 🛒 ${esc((doc.buyerCompanyName || '').substring(0, 20))}`;
+    else party = `🏭 ${esc(doc.sellerCompanyName || '')} → 🛒 ${esc(doc.buyerCompanyName || '')}`;
 
     const valStr = doc.type === 'quote' ? fmtMoney(doc.grandTotal) : '—';
 
@@ -4157,7 +4157,7 @@ function renderAdminSerialsTable() {
     db.products.forEach(p => {
       const o = document.createElement('option');
       o.value = p.id;
-      o.textContent = `[${p.code}] ${p.name.substring(0, 40)}`;
+      o.textContent = `[${p.code}] ${p.name}`;
       prodSel.appendChild(o);
     });
   }
@@ -5111,7 +5111,7 @@ function openRentalModal(editId) {
   sel.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
     db.products.map(p => {
       const stock = getStockCount(p.id);
-      return `<option value="${esc(p.id)}" data-name="${esc(p.name)}">[${esc(p.code)}] ${esc(p.name.substring(0, 50))} (tồn: ${stock})</option>`;
+      return `<option value="${esc(p.id)}" data-name="${esc(p.name)}">[${esc(p.code)}] ${esc(p.name)} (tồn: ${stock})</option>`;
     }).join('');
 
   if (editId) {

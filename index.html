@@ -24,7 +24,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=18.7" />
+  <link rel="stylesheet" href="style.css?v=18.8" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -53,6 +53,7 @@
 
     <!-- ═══════════════ SIDEBAR ═══════════════ -->
     <aside class="sidebar" id="app-sidebar">
+      <button class="sb-mobile-close" onclick="closeMobileSidebar()" aria-label="Đóng menu">✕</button>
       <div class="sb-logo" id="sb-logo" onclick="handleLogoClick()" title="Bấm vào đây để Đăng nhập Quản Trị (Admin)">
         <img src="app_logo.png?v=5.0"
           style="width:40px;height:40px;border-radius:10px;box-shadow:0 4px 12px rgba(37,99,235,0.3);object-fit:cover;margin-bottom:4px"
@@ -2014,11 +2015,11 @@
     </button>
     <button class="mb-nav-btn" id="mb-nav-import" onclick="nav('import')" aria-label="Nhập kho">
       <span class="mb-nav-icon">📥</span>
-      <span class="mb-nav-label">Nhập kho</span>
+      <span class="mb-nav-label">Nhập</span>
     </button>
     <button class="mb-nav-btn" id="mb-nav-export" onclick="nav('export')" aria-label="Xuất kho">
       <span class="mb-nav-icon">📤</span>
-      <span class="mb-nav-label">Xuất kho</span>
+      <span class="mb-nav-label">Xuất</span>
     </button>
     <button class="mb-nav-btn" id="mb-nav-bbgh" onclick="nav('bbgh')" aria-label="Tạo BBGH">
       <span class="mb-nav-icon">📄</span>
@@ -2026,13 +2027,13 @@
     </button>
     <button class="mb-nav-btn" id="mb-nav-more" onclick="toggleMobileSidebar()" aria-label="Menu mở rộng">
       <span class="mb-nav-icon">☰</span>
-      <span class="mb-nav-label">Thêm</span>
+      <span class="mb-nav-label">Menu</span>
     </button>
   </nav>
 
 
-  <script src="data.js?v=18.7"></script>
-  <script src="app.js?v=18.7"></script>
+  <script src="data.js?v=18.8"></script>
+  <script src="app.js?v=18.8"></script>
 </body>
 
 </html>
