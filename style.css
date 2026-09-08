@@ -1803,3 +1803,192 @@ tbody td { padding: 12px 16px; color: var(--text2); vertical-align: middle; }
   }
 }
 
+
+
+/* ══════════════════════════════════════════════════════════════════
+   MOBILE BOTTOM NAVIGATION & APP-LIKE OPTIMIZATIONS (v18.7)
+   ══════════════════════════════════════════════════════════════════ */
+.mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* Prevent iOS automatic zoom on form focus */
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Faster touch response on mobile */
+  button, .btn, .sb-item, .stat, .badge, .inv-summary-card, .mb-nav-btn {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Safe areas for iPhone notch & Home bar */
+  .mobile-topbar {
+    display: flex !important;
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(56px + env(safe-area-inset-top, 0px)) !important;
+  }
+
+  .main {
+    margin-left: 0 !important;
+    padding-top: calc(56px + env(safe-area-inset-top, 0px)) !important;
+    padding-bottom: calc(75px + env(safe-area-inset-bottom, 0px)) !important;
+    width: 100% !important;
+    overflow-x: hidden;
+  }
+
+  .pb {
+    padding-bottom: calc(30px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Sticky Mobile Bottom Navigation Bar */
+  .mobile-bottom-nav {
+    display: flex !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(58px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(226, 232, 240, 0.9);
+    z-index: 350;
+    align-items: stretch;
+    justify-content: space-around;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+  }
+
+  .mb-nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 5px 2px;
+    gap: 3px;
+    color: #64748b;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+
+  .mb-nav-btn:active {
+    transform: scale(0.92);
+  }
+
+  .mb-nav-btn.active {
+    color: #2563eb;
+  }
+
+  .mb-nav-icon {
+    font-size: 20px;
+    line-height: 1;
+    transition: transform 0.15s ease;
+  }
+
+  .mb-nav-btn.active .mb-nav-icon {
+    transform: scale(1.18);
+  }
+
+  .mb-nav-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .mb-nav-btn.active .mb-nav-label {
+    font-weight: 800;
+    color: #2563eb;
+  }
+
+  /* Toasts float cleanly above bottom navigation */
+  #toasts {
+    left: 14px !important;
+    right: 14px !important;
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
+    align-items: center !important;
+  }
+
+  .toast {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Modal optimization on mobile */
+  .mo {
+    width: 95% !important;
+    max-width: 95% !important;
+    max-height: 90vh !important;
+    border-radius: 18px !important;
+    margin: auto !important;
+  }
+
+  .mo-hd {
+    padding: 14px 16px !important;
+  }
+
+  .mo-title {
+    font-size: 15px !important;
+  }
+
+  .mo-body {
+    padding: 14px 16px !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mo-ft {
+    padding: 12px 16px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .mo-ft button {
+    flex: 1 1 120px !important;
+    justify-content: center !important;
+  }
+
+  /* Document detail modal 2 columns -> 1 column on phone */
+  #vd-body [style*="grid-template-columns:1fr 1fr"],
+  #vd-body [style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Quick Save Company button wraps gracefully on narrow screens */
+  .bbgh-company-input-wrap {
+    flex-wrap: wrap !important;
+  }
+
+  .bbgh-company-input-wrap button {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 8px 12px !important;
+  }
+
+  /* Horizontal scrollable tables with smooth momentum */
+  .tbl-wrap {
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+
+  /* Horizontal filter pills / floor tabs scrolling */
+  .floor-tabs-wrap,
+  .brand-pills-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    padding-bottom: 4px;
+  }
+}

@@ -409,9 +409,11 @@ function nav(page) {
   PAGES.forEach(p => {
     document.getElementById('page-' + p)?.classList.remove('active');
     document.getElementById('nav-' + p)?.classList.remove('active');
+    document.getElementById('mb-nav-' + p)?.classList.remove('active');
   });
   document.getElementById('page-' + page)?.classList.add('active');
   document.getElementById('nav-' + page)?.classList.add('active');
+  document.getElementById('mb-nav-' + page)?.classList.add('active');
 
   const renders = {
     'dashboard': renderDashboard, 'inventory': renderInventory, 'products': renderProducts,
@@ -4464,6 +4466,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(reg => {
       console.log('Service Worker Registered:', reg.scope);
+      try { reg.update(); } catch(e) {}
     }).catch(err => {
       console.log('Service Worker Registration failed:', err);
     });
