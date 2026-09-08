@@ -78,6 +78,19 @@ const INITIAL_SERIALS = {};
 // ─── CÔNG TY ──────────────────────────────────────────────────────
 const INITIAL_COMPANIES = [
   {
+    id: 'CTY000',
+    name: 'CÔNG TY TNHH THƯƠNG MẠI ĐẦU TƯ VÀ SẢN XUẤT THUẬN PHÁT',
+    shortName: 'Thuận Phát',
+    address: 'Số 8 Ngõ 120 Trần Bình, Thành phố Hà Nội, Việt Nam',
+    deliveryAddress: 'Số 8 Ngõ 120 Trần Bình, Thành phố Hà Nội, Việt Nam',
+    phone: '',
+    taxCode: '',
+    rep: 'Trương Ngọc Hoà',
+    repPosition: 'Kỹ Thuật Viên',
+    type: 'seller',
+    note: 'Đơn vị bán hàng nội bộ',
+  },
+  {
     id: 'CTY001',
     name: 'CÔNG TY TNHH THƯƠNG MẠI VÀ CÔNG NGHỆ TIN HỌC TÍN THÀNH',
     shortName: 'Tín Thành',

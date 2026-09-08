@@ -92,7 +92,18 @@ function load() {
       if (!db.products || db.products.length === 0) {
         db.products = INITIAL_PRODUCTS.map(p => ({ ...p, initialStock: 0, exported: 0 }));
       }
-      if (!db.companies) db.companies = [...INITIAL_COMPANIES];
+      if (!db.companies || db.companies.length === 0) {
+        db.companies = [...INITIAL_COMPANIES];
+      } else {
+        INITIAL_COMPANIES.forEach(initC => {
+          const idx = db.companies.findIndex(c => c.id === initC.id || (c.name && c.name.trim().toLowerCase() === initC.name.trim().toLowerCase()));
+          if (idx === -1) {
+            db.companies.push({ ...initC });
+          } else {
+            db.companies[idx] = { ...initC, ...db.companies[idx] };
+          }
+        });
+      }
       if (!db.employees) db.employees = [...INITIAL_EMPLOYEES];
       if (!db.bbghDocs) db.bbghDocs = [];
       if (!db.quotations) db.quotations = [];
@@ -3883,7 +3894,7 @@ function updateAdminSidebarState() {
 }
 
 function switchAdminTab(tab) {
-  ['docs', 'serials', 'settings'].forEach(t => {
+  ['docs', 'serials', 'products', 'settings'].forEach(t => {
     const el = document.getElementById('adm-tab-' + t);
     const btn = document.getElementById('adm-tab-' + t + '-btn');
     if (el) el.style.display = (t === tab) ? 'block' : 'none';
@@ -3891,6 +3902,7 @@ function switchAdminTab(tab) {
   });
   if (tab === 'docs') renderAdminDocsTable();
   if (tab === 'serials') renderAdminSerialsTable();
+  if (tab === 'products') renderAdminProductsTable();
 }
 
 function renderAdminPage() {
@@ -3924,6 +3936,8 @@ function renderAdminPage() {
 
   setT('adm-tab-docs-cnt', impLen + expLen + bbghLen + quoteLen);
   setT('adm-tab-serials-cnt', snTotal);
+  setT('adm-tab-products-cnt', prodLen);
+  renderAdminProductsTable();
 
   renderAdminDocsTable();
   renderAdminSerialsTable();
@@ -5312,4 +5326,234 @@ function saveQuickCompany(type) {
   if (document.getElementById('page-companies')?.classList.contains('active')) {
     renderCompanies();
   }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// QUẢN LÝ LOẠI HÀNG HÓA & MẶT HÀNG MỚI (ADMIN & PRODUCTS)
+// ═══════════════════════════════════════════════════════════════
+
+function autoSuggestProdCode() {
+  let max = 0;
+  (db.products || []).forEach(p => {
+    const match = (p.code || '').match(/\d+/);
+    if (match) {
+      const num = parseInt(match[0], 10);
+      if (num > max && num < 100000) max = num;
+    }
+  });
+  const nextCode = 'VT' + String(max + 1).padStart(5, '0');
+  const codeEl = document.getElementById('new-prod-code');
+  if (codeEl) codeEl.value = nextCode;
+  return nextCode;
+}
+
+function openAddProductAdmin(editId = null) {
+  const titleEl = document.getElementById('mo-prod-admin-title');
+  const idEl = document.getElementById('edit-prod-id');
+  const codeEl = document.getElementById('new-prod-code');
+  const nameEl = document.getElementById('new-prod-name');
+  const unitEl = document.getElementById('new-prod-unit');
+  const brandEl = document.getElementById('new-prod-brand');
+  const catEl = document.getElementById('new-prod-cat');
+  const locEl = document.getElementById('new-prod-loc');
+  const stockEl = document.getElementById('new-prod-stock');
+
+  if (editId) {
+    const p = db.products.find(x => x.id === editId || x.code === editId);
+    if (!p) { toast('Không tìm thấy loại hàng hóa!', 'wrn'); return; }
+    const enriched = enrichProduct(p);
+    if (titleEl) titleEl.textContent = '✏️ Chỉnh Sửa Loại Hàng Hóa [' + (p.code || '') + ']';
+    if (idEl) idEl.value = p.id;
+    if (codeEl) { codeEl.value = p.code || ''; codeEl.disabled = true; }
+    if (nameEl) nameEl.value = p.name || '';
+    if (unitEl) unitEl.value = p.unit || 'Cái';
+    if (brandEl) brandEl.value = enriched.brand || '';
+    if (catEl) catEl.value = enriched.category || '';
+    if (locEl) locEl.value = p.location || 'Tầng 1';
+    if (stockEl) {
+      stockEl.value = getStockCount(p.id);
+      stockEl.disabled = true; // Để cập nhật tồn kho hãy dùng chức năng Nhập/Xuất kho hoặc cập nhật tầng
+    }
+  } else {
+    if (titleEl) titleEl.textContent = '📦 Thêm Loại Hàng Hóa Mới (Mặt Hàng Mới)';
+    if (idEl) idEl.value = '';
+    if (codeEl) { codeEl.value = ''; codeEl.disabled = false; autoSuggestProdCode(); }
+    if (nameEl) nameEl.value = '';
+    if (unitEl) unitEl.value = 'Cái';
+    if (brandEl) brandEl.value = '';
+    if (catEl) catEl.value = 'Máy in & Máy quét';
+    if (locEl) locEl.value = 'Tầng 1';
+    if (stockEl) { stockEl.value = '0'; stockEl.disabled = false; }
+  }
+
+  openModal('mo-add-product-admin');
+}
+
+function editProductAdmin(id) {
+  openAddProductAdmin(id);
+}
+
+function saveNewProductAdmin() {
+  const id = (document.getElementById('edit-prod-id')?.value || '').trim();
+  const code = (document.getElementById('new-prod-code')?.value || '').trim().toUpperCase();
+  const name = (document.getElementById('new-prod-name')?.value || '').trim();
+  const unit = (document.getElementById('new-prod-unit')?.value || 'Cái').trim();
+  const brand = (document.getElementById('new-prod-brand')?.value || 'Khác').trim();
+  const category = (document.getElementById('new-prod-cat')?.value || 'Khác').trim();
+  const location = (document.getElementById('new-prod-loc')?.value || 'Tầng 1').trim();
+  const initialStock = Math.max(0, parseInt(document.getElementById('new-prod-stock')?.value, 10) || 0);
+
+  if (!name) {
+    toast('Vui lòng nhập tên loại hàng hóa / sản phẩm!', 'wrn');
+    document.getElementById('new-prod-name')?.focus();
+    return;
+  }
+  if (!code) {
+    toast('Vui lòng nhập mã hàng!', 'wrn');
+    document.getElementById('new-prod-code')?.focus();
+    return;
+  }
+
+  if (id) {
+    // Chỉnh sửa sản phẩm hiện có
+    const idx = db.products.findIndex(p => p.id === id);
+    if (idx !== -1) {
+      db.products[idx].name = name;
+      db.products[idx].unit = unit;
+      db.products[idx].brand = brand;
+      db.products[idx].category = category;
+      db.products[idx].location = location;
+      save();
+      toast('✅ Đã cập nhật loại hàng hóa: [' + code + '] ' + name, 'ok');
+    }
+  } else {
+    // Thêm mới sản phẩm
+    const exists = db.products.some(p => p.code.toUpperCase() === code || p.id === code);
+    if (exists) {
+      toast('Mã hàng ' + code + ' đã tồn tại! Vui lòng chọn mã khác.', 'err');
+      return;
+    }
+
+    const floorStock = {};
+    if (initialStock > 0) {
+      floorStock[location] = initialStock;
+    }
+
+    const newP = {
+      id: code,
+      code: code,
+      name: name,
+      unit: unit || 'Cái',
+      brand: brand || 'Khác',
+      category: category || 'Khác',
+      location: location || 'Tầng 1',
+      initialStock: initialStock,
+      exported: 0,
+      floorStock: floorStock,
+      notes: ''
+    };
+
+    db.products.push(newP);
+    save();
+    toast('✅ Đã thêm thành công loại hàng hóa mới: [' + code + '] ' + name, 'ok');
+  }
+
+  closeModal('mo-add-product-admin');
+
+  // Cập nhật lại toàn bộ giao diện
+  renderAdminProductsTable();
+  const prodLen = (db.products || []).length;
+  const pCountEl = document.getElementById('adm-stat-products');
+  if (pCountEl) pCountEl.textContent = prodLen;
+  const tabPCnt = document.getElementById('adm-tab-products-cnt');
+  if (tabPCnt) tabPCnt.textContent = prodLen;
+
+  if (typeof renderProducts === 'function') renderProducts();
+  if (typeof renderInventory === 'function') renderInventory();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  if (typeof populateBbghSelects === 'function') populateBbghSelects();
+}
+
+function deleteProductAdmin(id) {
+  const p = db.products.find(x => x.id === id);
+  if (!p) return;
+
+  const stock = getStockCount(p.id);
+  const msg = stock > 0
+    ? '⚠️ Sản phẩm [' + p.code + '] "' + p.name + '" hiện đang còn ' + stock + ' ' + (p.unit || 'cái') + ' trong kho! Bạn có chắc chắn muốn xóa khỏi danh mục không?'
+    : 'Bạn có chắc chắn muốn xóa loại hàng [' + p.code + '] "' + p.name + '" khỏi danh mục?';
+
+  if (!confirm(msg)) return;
+
+  db.products = db.products.filter(x => x.id !== id);
+  save();
+  toast('🗑️ Đã xóa loại hàng hóa [' + p.code + ']', 'ok');
+
+  renderAdminProductsTable();
+  const prodLen = (db.products || []).length;
+  const pCountEl = document.getElementById('adm-stat-products');
+  if (pCountEl) pCountEl.textContent = prodLen;
+  const tabPCnt = document.getElementById('adm-tab-products-cnt');
+  if (tabPCnt) tabPCnt.textContent = prodLen;
+
+  if (typeof renderProducts === 'function') renderProducts();
+  if (typeof renderInventory === 'function') renderInventory();
+  if (typeof renderDashboard === 'function') renderDashboard();
+}
+
+function renderAdminProductsTable() {
+  const tbody = document.getElementById('adm-products-tbody');
+  if (!tbody) return;
+
+  const q = (document.getElementById('adm-p-q')?.value || '').toLowerCase().trim();
+  const catFilter = document.getElementById('adm-p-cat')?.value || 'all';
+  const locFilter = document.getElementById('adm-p-loc')?.value || 'all';
+
+  // Populate Categories dropdown dynamically
+  const catSel = document.getElementById('adm-p-cat');
+  if (catSel && catSel.options.length <= 1) {
+    const cats = [...new Set(db.products.map(p => enrichProduct(p).category).filter(Boolean))].sort();
+    catSel.innerHTML = '<option value="all">📂 Tất cả ngành hàng</option>' +
+      cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  }
+
+  let list = db.products.map(p => enrichProduct(p));
+
+  if (q) {
+    list = list.filter(p => (p.name || '').toLowerCase().includes(q) || (p.code || '').toLowerCase().includes(q) || (p.brand || '').toLowerCase().includes(q));
+  }
+  if (catFilter !== 'all') {
+    list = list.filter(p => p.category === catFilter);
+  }
+  if (locFilter !== 'all') {
+    list = list.filter(p => p.location === locFilter);
+  }
+
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="tc c3 py4">Không tìm thấy loại hàng hóa nào phù hợp</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map((p, idx) => {
+    const stock = getStockCount(p.id);
+    return `<tr>
+      <td class="tc c3">${idx + 1}</td>
+      <td><span class="badge b-bbgh fs12 fw7">${esc(p.code)}</span></td>
+      <td>
+        <div class="fw7" style="color:var(--text1)">${esc(p.name)}</div>
+      </td>
+      <td>${esc(p.unit || 'Cái')}</td>
+      <td><span class="badge b-neu">${esc(p.brand || 'Khác')}</span></td>
+      <td><span class="badge b-in fs11">${esc(p.category || 'Khác')}</span></td>
+      <td>🏢 ${esc(p.location || 'Tầng 1')}</td>
+      <td class="tc"><strong style="color:${stock > 0 ? '#16a34a' : '#94a3b8'}">${stock}</strong></td>
+      <td class="tc">
+        <div style="display:flex; gap:6px; justify-content:center;">
+          <button class="btn btn-ghost btn-xs" onclick="editProductAdmin('${esc(p.id)}')" title="Chỉnh sửa loại hàng">✏️ Sửa</button>
+          <button class="btn btn-ghost btn-xs" onclick="deleteProductAdmin('${esc(p.id)}')" title="Xóa loại hàng này" style="color:#dc2626;">🗑️ Xóa</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
 }

@@ -24,7 +24,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=18.8" />
+  <link rel="stylesheet" href="style.css?v=18.9" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -330,6 +330,11 @@
           <div>
             <div class="ph-title">📦 Danh Sách Hàng Hóa</div>
             <div class="ph-sub">Click tên hàng để xem serial · <span id="p-count" class="c3"></span></div>
+          </div>
+          <div class="ph-actions">
+            <button class="btn btn-primary btn-sm" onclick="openAddProductAdmin()" style="font-weight:700;">
+              ➕ Thêm loại hàng hóa
+            </button>
           </div>
         </div>
         <div class="pb">
@@ -1059,7 +1064,10 @@
               Quản lý nâng cao · Xóa & dọn dẹp chứng từ · Quản lý Serial kho · Sao lưu & Phục hồi cơ sở dữ liệu
             </div>
           </div>
-          <div class="ph-actions" style="display:flex; gap:8px; align-items:center;">
+          <div class="ph-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-success btn-sm" onclick="openAddProductAdmin()" style="display:flex; align-items:center; gap:6px; font-weight:700; background:#16a34a; border-color:#15803d;">
+              ➕ Thêm loại hàng hóa mới
+            </button>
             <button class="btn btn-primary btn-sm" onclick="exportDatabaseBackup()" style="display:flex; align-items:center; gap:6px;">
               💾 Sao lưu JSON
             </button>
@@ -1219,6 +1227,9 @@
             <button class="adm-tab-btn" id="adm-tab-serials-btn" onclick="switchAdminTab('serials')" style="font-size:13px; font-weight:700; border-radius:9px; padding:9px 18px;">
               🔢 Quản Lý & Xóa Từng Serial (<span id="adm-tab-serials-cnt">0</span>)
             </button>
+            <button class="adm-tab-btn" id="adm-tab-products-btn" onclick="switchAdminTab('products')" style="font-size:13px; font-weight:700; border-radius:9px; padding:9px 18px;">
+              📦 Danh Mục Hàng Hóa (<span id="adm-tab-products-cnt">0</span>)
+            </button>
             <button class="adm-tab-btn" id="adm-tab-settings-btn" onclick="switchAdminTab('settings')" style="font-size:13px; font-weight:700; border-radius:9px; padding:9px 18px;">
               ⚙️ Cài Đặt & Mật Khẩu Admin
             </button>
@@ -1294,6 +1305,50 @@
                   </tr>
                 </thead>
                 <tbody id="adm-sn-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          
+          <!-- Tab 4: Danh mục sản phẩm & loại hàng hóa -->
+          <div id="adm-tab-products" style="display:none">
+            <div class="toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+              <div style="display:flex; gap:8px; flex:1; min-width:260px; flex-wrap:wrap;">
+                <div class="search-wrap" style="flex:1; min-width:180px;">
+                  <span class="search-ico">🔍</span>
+                  <input type="text" id="adm-p-q" placeholder="Tìm kiếm tên mặt hàng, mã hàng..." oninput="renderAdminProductsTable()" />
+                </div>
+                <select class="fs" id="adm-p-cat" onchange="renderAdminProductsTable()" style="width:auto">
+                  <option value="all">📂 Tất cả ngành hàng</option>
+                </select>
+                <select class="fs" id="adm-p-loc" onchange="renderAdminProductsTable()" style="width:auto">
+                  <option value="all">🏢 Tất cả tầng</option>
+                  <option value="Tầng 1">Tầng 1</option>
+                  <option value="Tầng 2">Tầng 2</option>
+                  <option value="Tầng 3">Tầng 3</option>
+                  <option value="Tầng 4">Tầng 4</option>
+                </select>
+              </div>
+              <button class="btn btn-success" onclick="openAddProductAdmin()" style="font-weight:700; display:inline-flex; align-items:center; gap:6px;">
+                ➕ Thêm loại hàng hóa mới
+              </button>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:45px" class="tc">STT</th>
+                    <th style="width:100px">Mã hàng</th>
+                    <th>Tên mặt hàng / Loại hàng hóa</th>
+                    <th style="width:70px">ĐVT</th>
+                    <th>Hãng</th>
+                    <th>Ngành hàng</th>
+                    <th>Vị trí (Tầng)</th>
+                    <th class="tc" style="width:90px">Tồn kho</th>
+                    <th class="tc" style="width:110px">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody id="adm-products-tbody"></tbody>
               </table>
             </div>
           </div>
@@ -2000,6 +2055,107 @@
     </div>
   </div>
 
+  
+  <!-- Modal Thêm Loại Hàng Hóa Mới (Admin) -->
+  <div class="mo-overlay" id="mo-add-product-admin">
+    <div class="mo mo-md">
+      <div class="mo-hd">
+        <span class="mo-title" id="mo-prod-admin-title">📦 Thêm Loại Hàng Hóa Mới (Mặt Hàng Mới)</span>
+        <button class="mo-x" onclick="closeModal('mo-add-product-admin')">✕</button>
+      </div>
+      <div class="mo-body">
+        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:12px 16px; margin-bottom:16px; font-size:13px; color:#1e40af;">
+          💡 <strong>Thêm loại hàng hóa mới</strong> vào danh mục hệ thống. Sau khi tạo, bạn có thể nhập/xuất kho, theo dõi số lượng và tạo biên bản bàn giao cho mặt hàng này.
+        </div>
+        <input type="hidden" id="edit-prod-id" value="" />
+        <div class="frow mb3">
+          <div class="fg">
+            <label class="flabel">Mã hàng <span class="req">*</span></label>
+            <div style="display:flex; gap:6px;">
+              <input type="text" class="fi" id="new-prod-code" placeholder="vd: VT00226" style="font-weight:700; text-transform:uppercase;" />
+              <button type="button" class="btn btn-ghost btn-sm" onclick="autoSuggestProdCode()" title="Tự động tạo mã tiếp theo" style="white-space:nowrap;">⚡ Tự tạo mã</button>
+            </div>
+          </div>
+          <div class="fg">
+            <label class="flabel">Đơn vị tính (ĐVT) <span class="req">*</span></label>
+            <input type="text" class="fi" id="new-prod-unit" list="dl-units" placeholder="Cái, Chiếc, Bộ, Hộp..." />
+            <datalist id="dl-units">
+              <option value="Cái">
+              <option value="Chiếc">
+              <option value="Bộ">
+              <option value="Hộp">
+              <option value="Cuộn">
+              <option value="Thùng">
+              <option value="Ram">
+            </datalist>
+          </div>
+        </div>
+
+        <div class="fg mb3">
+          <label class="flabel">Tên loại hàng hóa / sản phẩm <span class="req">*</span></label>
+          <input type="text" class="fi" id="new-prod-name" placeholder="vd: Máy in đa năng HP LaserJet M428fdw, Màn hình MSI 24 inch..." style="font-weight:600;" />
+        </div>
+
+        <div class="frow mb3">
+          <div class="fg">
+            <label class="flabel">Hãng sản xuất / Thương hiệu</label>
+            <input type="text" class="fi" id="new-prod-brand" list="dl-brands" placeholder="HP, MSI, Kyocera, Canon, Ricoh..." />
+            <datalist id="dl-brands">
+              <option value="HP">
+              <option value="MSI">
+              <option value="Kyocera">
+              <option value="Canon">
+              <option value="Ricoh">
+              <option value="Brother">
+              <option value="Epson">
+              <option value="Dell">
+              <option value="Lenovo">
+              <option value="Asus">
+              <option value="Microsoft">
+              <option value="Apple">
+              <option value="Khác">
+            </datalist>
+          </div>
+          <div class="fg">
+            <label class="flabel">Loại ngành hàng (Category)</label>
+            <input type="text" class="fi" id="new-prod-cat" list="dl-categories" placeholder="Máy in & Máy quét, Màn hình..." />
+            <datalist id="dl-categories">
+              <option value="Máy in & Máy quét">
+              <option value="Mực in & Vật tư">
+              <option value="Màn hình">
+              <option value="Máy tính & PC">
+              <option value="Phím chuột & Linh kiện">
+              <option value="Camera & Thiết bị mạng">
+              <option value="Thiết bị văn phòng khác">
+            </datalist>
+          </div>
+        </div>
+
+        <div class="frow mb2">
+          <div class="fg">
+            <label class="flabel">Vị trí tầng lưu kho ban đầu</label>
+            <select class="fs" id="new-prod-loc">
+              <option value="Tầng 1">🏢 Tầng 1</option>
+              <option value="Tầng 2">🏢 Tầng 2</option>
+              <option value="Tầng 3">🏢 Tầng 3</option>
+              <option value="Tầng 4">🏢 Tầng 4</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="flabel">Số lượng tồn ban đầu (Cái/Bộ)</label>
+            <input type="number" class="fi" id="new-prod-stock" min="0" value="0" placeholder="0" />
+          </div>
+        </div>
+      </div>
+      <div class="mo-ft">
+        <button class="btn btn-success" onclick="saveNewProductAdmin()" style="font-weight:700; padding:10px 22px;">
+          💾 Lưu loại hàng hóa mới
+        </button>
+        <button class="btn btn-ghost" onclick="closeModal('mo-add-product-admin')">Hủy</button>
+      </div>
+    </div>
+  </div>
+
   <!-- TOASTS -->
   <div id="toasts"></div>
 
@@ -2032,8 +2188,8 @@
   </nav>
 
 
-  <script src="data.js?v=18.8"></script>
-  <script src="app.js?v=18.8"></script>
+  <script src="data.js?v=18.9"></script>
+  <script src="app.js?v=18.9"></script>
 </body>
 
 </html>
