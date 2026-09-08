@@ -24,7 +24,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=18.0" />
+  <link rel="stylesheet" href="style.css?v=18.6" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -866,7 +866,19 @@
 
             <div class="party-box" style="border-top: 3.5px solid #ea580c">
               <div class="party-box-hd" style="color:#ea580c">🏭 BÊN BÁN (Bên A)</div>
-              <div class="fg"><label class="flabel">Chọn công ty <span class="req">*</span></label>
+              <div class="fg mb2">
+                <label class="flabel">Tên công ty bên bán <span class="req">*</span></label>
+                <div style="display:flex; gap:8px;">
+                  <input type="text" class="fi" id="bbgh-seller-name" list="dl-companies"
+                    placeholder="Gõ tên công ty hoặc chọn bên dưới..." oninput="onBbghSellerNameInput(this.value)" autocomplete="off" style="font-weight:600;" />
+                  <button type="button" class="btn btn-primary btn-sm" onclick="saveQuickCompany('seller')"
+                    style="white-space:nowrap; display:inline-flex; align-items:center; gap:5px; padding:0 12px; font-weight:700;"
+                    title="Lưu thông tin công ty này vào danh bạ">
+                    💾 Lưu công ty
+                  </button>
+                </div>
+              </div>
+              <div class="fg mb2"><label class="flabel" style="font-size:11.5px; color:var(--text3)">Hoặc chọn nhanh từ danh bạ đã lưu:</label>
                 <select class="fs" id="bbgh-seller" onchange="onBbghSellerChange()">
                   <option value="">-- Chọn bên bán --</option>
                 </select>
@@ -891,7 +903,19 @@
 
             <div class="party-box" style="border-top: 3.5px solid #0284c7">
               <div class="party-box-hd" style="color:#0284c7">🛒 BÊN MUA (Bên B)</div>
-              <div class="fg"><label class="flabel">Chọn công ty <span class="req">*</span></label>
+              <div class="fg mb2">
+                <label class="flabel">Tên công ty bên mua <span class="req">*</span></label>
+                <div style="display:flex; gap:8px;">
+                  <input type="text" class="fi" id="bbgh-buyer-name" list="dl-companies"
+                    placeholder="Gõ tên công ty hoặc chọn bên dưới..." oninput="onBbghBuyerNameInput(this.value)" autocomplete="off" style="font-weight:600;" />
+                  <button type="button" class="btn btn-primary btn-sm" onclick="saveQuickCompany('buyer')"
+                    style="white-space:nowrap; display:inline-flex; align-items:center; gap:5px; padding:0 12px; font-weight:700;"
+                    title="Lưu thông tin công ty này vào danh bạ">
+                    💾 Lưu công ty
+                  </button>
+                </div>
+              </div>
+              <div class="fg mb2"><label class="flabel" style="font-size:11.5px; color:var(--text3)">Hoặc chọn nhanh từ danh bạ đã lưu:</label>
                 <select class="fs" id="bbgh-buyer" onchange="onBbghBuyerChange()">
                   <option value="">-- Chọn bên mua --</option>
                 </select>
@@ -1024,104 +1048,179 @@
 
       <!-- ─── ADMIN PANEL ─── -->
       <div class="page" id="page-admin">
-        <div class="ph">
+        <div class="ph" style="background:#ffffff; border:1px solid #e2e8f0; padding:18px 22px; border-radius:14px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.03); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
           <div>
             <div class="ph-title flex ic gap2">
-              <span>🛡️ Trung Tâm Quản Trị Hệ Thống</span>
-              <span class="badge b-admin">ADMIN ROOT</span>
+              <span style="font-size:20px;">🛡️ Trung Tâm Quản Trị Hệ Thống</span>
+              <span class="badge" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; font-weight:800; font-size:11px; letter-spacing:0.5px;">ADMIN ROOT</span>
             </div>
-            <div class="ph-sub">Quản lý nâng cao · Xóa / dọn dẹp biên bản · Quản lý & xóa Serial · Sao lưu & Phục hồi
+            <div class="ph-sub" style="margin-top:4px; color:#64748b; font-size:13px;">
+              Quản lý nâng cao · Xóa & dọn dẹp chứng từ · Quản lý Serial kho · Sao lưu & Phục hồi cơ sở dữ liệu
             </div>
           </div>
-          <div class="ph-actions">
-            <button class="btn btn-ghost btn-sm" onclick="logoutAdmin()">🚪 Đăng xuất Admin</button>
-            <button class="btn btn-primary btn-sm" onclick="exportDatabaseBackup()">💾 Sao lưu JSON</button>
-            <button class="btn btn-purple btn-sm" onclick="triggerImportBackup()">📥 Phục hồi JSON</button>
+          <div class="ph-actions" style="display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-primary btn-sm" onclick="exportDatabaseBackup()" style="display:flex; align-items:center; gap:6px;">
+              💾 Sao lưu JSON
+            </button>
+            <button class="btn btn-purple btn-sm" onclick="triggerImportBackup()" style="display:flex; align-items:center; gap:6px;">
+              📥 Phục hồi JSON
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="logoutAdmin()" style="display:flex; align-items:center; gap:6px; color:#dc2626; border-color:#fecaca;">
+              🚪 Đăng xuất Admin
+            </button>
           </div>
         </div>
 
         <div class="pb">
           <!-- Thống kê nhanh Admin -->
-          <div class="stats" style="grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));margin-bottom:20px">
-            <div class="stat c-blue">
-              <span class="stat-icon">📦</span>
-              <div class="stat-val" id="adm-stat-products">0</div>
-              <div class="stat-lbl">Sản phẩm</div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:14px; margin-bottom:20px;">
+            
+            <!-- Sản phẩm -->
+            <div style="background:linear-gradient(135deg, #ffffff 0%, #eff6ff 100%); border:1px solid #bfdbfe; border-radius:14px; padding:16px 18px; box-shadow:0 2px 4px rgba(37,99,235,0.04); display:flex; flex-direction:column; justify-content:space-between;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <span style="font-size:11px; font-weight:800; color:#1d4ed8; text-transform:uppercase; letter-spacing:0.5px;">SẢN PHẨM</span>
+                <span style="width:34px; height:34px; border-radius:10px; background:#dbeafe; color:#1d4ed8; display:flex; align-items:center; justify-content:center; font-size:18px;">📦</span>
+              </div>
+              <div style="margin-top:10px;">
+                <div style="font-size:26px; font-weight:900; color:#1e3a8a; line-height:1;" id="adm-stat-products">0</div>
+                <div style="font-size:12px; color:#64748b; margin-top:4px;">danh mục mặt hàng</div>
+              </div>
             </div>
-            <div class="stat c-purple">
-              <span class="stat-icon">🔢</span>
-              <div class="stat-val" id="adm-stat-serials">0</div>
-              <div class="stat-lbl">Serial (Kho / Xuất)</div>
+
+            <!-- Serial -->
+            <div style="background:linear-gradient(135deg, #ffffff 0%, #eef2ff 100%); border:1px solid #c7d2fe; border-radius:14px; padding:16px 18px; box-shadow:0 2px 4px rgba(79,70,229,0.04); display:flex; flex-direction:column; justify-content:space-between;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <span style="font-size:11px; font-weight:800; color:#4338ca; text-transform:uppercase; letter-spacing:0.5px;">MÃ SERIAL</span>
+                <span style="width:34px; height:34px; border-radius:10px; background:#e0e7ff; color:#4338ca; display:flex; align-items:center; justify-content:center; font-size:18px;">🔢</span>
+              </div>
+              <div style="margin-top:10px;">
+                <div style="font-size:26px; font-weight:900; color:#312e81; line-height:1;" id="adm-stat-serials">0</div>
+                <div id="adm-stat-serials-sub" style="font-size:11.5px; color:#64748b; margin-top:4px;">0 tồn · 0 xuất</div>
+              </div>
             </div>
-            <div class="stat c-green">
-              <span class="stat-icon">📥</span>
-              <div class="stat-val" id="adm-stat-imp">0</div>
-              <div class="stat-lbl">Biên bản Nhập</div>
+
+            <!-- BB Nhập -->
+            <div style="background:linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%); border:1px solid #a7f3d0; border-radius:14px; padding:16px 18px; box-shadow:0 2px 4px rgba(5,150,105,0.04); display:flex; flex-direction:column; justify-content:space-between;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <span style="font-size:11px; font-weight:800; color:#047857; text-transform:uppercase; letter-spacing:0.5px;">BIÊN BẢN NHẬP</span>
+                <span style="width:34px; height:34px; border-radius:10px; background:#dcfce7; color:#047857; display:flex; align-items:center; justify-content:center; font-size:18px;">📥</span>
+              </div>
+              <div style="margin-top:10px;">
+                <div style="font-size:26px; font-weight:900; color:#065f46; line-height:1;" id="adm-stat-imp">0</div>
+                <div style="font-size:12px; color:#64748b; margin-top:4px;">phiếu nhập kho</div>
+              </div>
             </div>
-            <div class="stat c-orange">
-              <span class="stat-icon">📤</span>
-              <div class="stat-val" id="adm-stat-exp">0</div>
-              <div class="stat-lbl">Biên bản Xuất</div>
+
+            <!-- BB Xuất -->
+            <div style="background:linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%); border:1px solid #bae6fd; border-radius:14px; padding:16px 18px; box-shadow:0 2px 4px rgba(2,132,199,0.04); display:flex; flex-direction:column; justify-content:space-between;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <span style="font-size:11px; font-weight:800; color:#0369a1; text-transform:uppercase; letter-spacing:0.5px;">BIÊN BẢN XUẤT</span>
+                <span style="width:34px; height:34px; border-radius:10px; background:#e0f2fe; color:#0369a1; display:flex; align-items:center; justify-content:center; font-size:18px;">📤</span>
+              </div>
+              <div style="margin-top:10px;">
+                <div style="font-size:26px; font-weight:900; color:#0c4a6e; line-height:1;" id="adm-stat-exp">0</div>
+                <div style="font-size:12px; color:#64748b; margin-top:4px;">phiếu xuất kho</div>
+              </div>
             </div>
-            <div class="stat" style="border-left:4px solid #8b5cf6">
-              <span class="stat-icon">📋</span>
-              <div class="stat-val" id="adm-stat-bbgh">0</div>
-              <div class="stat-lbl">Biên bản Bàn giao</div>
+
+            <!-- BB Bàn giao -->
+            <div style="background:linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%); border:1px solid #ddd6fe; border-radius:14px; padding:16px 18px; box-shadow:0 2px 4px rgba(124,58,237,0.04); display:flex; flex-direction:column; justify-content:space-between;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <span style="font-size:11px; font-weight:800; color:#6d28d9; text-transform:uppercase; letter-spacing:0.5px;">BÀN GIAO</span>
+                <span style="width:34px; height:34px; border-radius:10px; background:#ede9fe; color:#6d28d9; display:flex; align-items:center; justify-content:center; font-size:18px;">📋</span>
+              </div>
+              <div style="margin-top:10px;">
+                <div style="font-size:26px; font-weight:900; color:#4c1d95; line-height:1;" id="adm-stat-bbgh">0</div>
+                <div style="font-size:12px; color:#64748b; margin-top:4px;">biên bản bàn giao</div>
+              </div>
             </div>
-            <div class="stat" style="border-left:4px solid #f59e0b">
-              <span class="stat-icon">💰</span>
-              <div class="stat-val" id="adm-stat-quote">0</div>
-              <div class="stat-lbl">Báo giá</div>
+
+            <!-- Báo giá -->
+            <div style="background:linear-gradient(135deg, #ffffff 0%, #fffbeb 100%); border:1px solid #fde68a; border-radius:14px; padding:16px 18px; box-shadow:0 2px 4px rgba(217,119,6,0.04); display:flex; flex-direction:column; justify-content:space-between;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <span style="font-size:11px; font-weight:800; color:#b45309; text-transform:uppercase; letter-spacing:0.5px;">BÁO GIÁ</span>
+                <span style="width:34px; height:34px; border-radius:10px; background:#fef3c7; color:#b45309; display:flex; align-items:center; justify-content:center; font-size:18px;">💰</span>
+              </div>
+              <div style="margin-top:10px;">
+                <div style="font-size:26px; font-weight:900; color:#78350f; line-height:1;" id="adm-stat-quote">0</div>
+                <div style="font-size:12px; color:#64748b; margin-top:4px;">bản báo giá</div>
+              </div>
             </div>
+
           </div>
 
-          <!-- Danger Zone: Xóa hàng loạt & Dọn dẹp -->
-          <div class="admin-card mb4">
-            <div class="admin-card-hd flex ic jb">
-              <div class="flex ic gap2">
-                <span style="font-size:22px">⚡</span>
+          <!-- Danger Zone: Quản Lý & Dọn Dẹp Dữ Liệu -->
+          <div style="background:#ffffff; border:1px solid #fecaca; border-radius:16px; margin-bottom:24px; overflow:hidden; box-shadow:0 2px 8px rgba(239,68,68,0.04);">
+            <div style="padding:14px 20px; background:linear-gradient(135deg, #fff1f2 0%, #fff7ed 100%); border-bottom:1px solid #fecaca; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:36px; height:36px; border-radius:10px; background:#fee2e2; color:#dc2626; display:flex; align-items:center; justify-content:center; font-size:18px;">⚡</div>
                 <div>
-                  <h3 style="font-size:15px;font-weight:800;color:#991b1b;margin:0">Tác Vụ Xóa Nhanh & Dọn Dẹp Dữ Liệu
-                  </h3>
-                  <p class="fs12 c3" style="margin:2px 0 0">Xóa nhanh từng loại hoặc xóa toàn bộ chứng từ, làm sạch
-                    serial thử nghiệm</p>
+                  <div style="font-size:14.5px; font-weight:800; color:#991b1b;">Tác Vụ Xóa Nhanh & Dọn Dẹp Dữ Liệu</div>
+                  <div style="font-size:12px; color:#7f1d1d; margin-top:2px;">Xóa nhanh theo loại chứng từ, quản lý serial hoặc thiết lập lại hệ thống</div>
                 </div>
               </div>
-              <span class="badge b-danger">DANGER ZONE</span>
+              <span style="background:#dc2626; color:#ffffff; font-size:11px; font-weight:800; padding:4px 10px; border-radius:20px; letter-spacing:0.5px;">DANGER ZONE</span>
             </div>
-            <div class="admin-card-bd">
-              <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px">
-                <button class="btn btn-purple btn-sm" onclick="deleteAllDocsOfType('bbgh')">🗑️ Xóa tất cả BB Bàn giao
-                  (<span id="btn-cnt-bbgh">0</span>)</button>
-                <button class="btn btn-success btn-sm" onclick="deleteAllDocsOfType('import')">🗑️ Xóa tất cả BB Nhập
-                  (<span id="btn-cnt-imp">0</span>)</button>
-                <button class="btn btn-orange btn-sm" onclick="deleteAllDocsOfType('export')">🗑️ Xóa tất cả BB Xuất
-                  (<span id="btn-cnt-exp">0</span>)</button>
-                <button class="btn btn-amber btn-sm" onclick="deleteAllDocsOfType('quote')">🗑️ Xóa tất cả Báo giá
-                  (<span id="btn-cnt-quote">0</span>)</button>
+
+            <div style="padding:16px 20px; display:flex; flex-direction:column; gap:14px;">
+              <!-- Nhóm 1: Xóa nhanh theo từng loại chứng từ -->
+              <div>
+                <div style="font-size:11.5px; font-weight:700; color:#64748b; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">
+                  1. Xóa hàng loạt theo loại chứng từ:
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                  <button class="btn btn-sm" onclick="deleteAllDocsOfType('bbgh')" style="background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe; font-weight:700;">
+                    🗑️ Xóa tất cả BB Bàn giao (<span id="btn-cnt-bbgh">0</span>)
+                  </button>
+                  <button class="btn btn-sm" onclick="deleteAllDocsOfType('import')" style="background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; font-weight:700;">
+                    🗑️ Xóa tất cả BB Nhập (<span id="btn-cnt-imp">0</span>)
+                  </button>
+                  <button class="btn btn-sm" onclick="deleteAllDocsOfType('export')" style="background:#f0f9ff; color:#0284c7; border:1px solid #bae6fd; font-weight:700;">
+                    🗑️ Xóa tất cả BB Xuất (<span id="btn-cnt-exp">0</span>)
+                  </button>
+                  <button class="btn btn-sm" onclick="deleteAllDocsOfType('quote')" style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; font-weight:700;">
+                    🗑️ Xóa tất cả Báo giá (<span id="btn-cnt-quote">0</span>)
+                  </button>
+                </div>
               </div>
-              <div style="display:flex;flex-wrap:wrap;gap:10px;padding-top:12px;border-top:1px dashed #fecaca">
-                <button class="btn btn-danger btn-sm" onclick="deleteAllDocs()">🚨 Xóa TẤT CẢ Chứng Từ / Biên
-                  Bản</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteAllSerials()">🔢 Xóa 100% Tất Cả Serial</button>
-                <button class="btn btn-ghost btn-sm" onclick="deleteExportedSerialsOnly()">🧹 Xóa chỉ Serial ĐÃ
-                  XUẤT</button>
-                <button class="btn btn-ghost btn-sm" onclick="resetAllSerialsToInStock()">🔄 Chuyển tất cả Serial về Tồn
-                  kho</button>
-                <button class="btn btn-danger btn-sm" onclick="fullDataReset()" style="background:#7f1d1d">⚡ Khôi phục
-                  Trắng (Full Reset)</button>
+
+              <!-- Nhóm 2: Xử lý Serial & Thao tác nguy hiểm -->
+              <div style="padding-top:12px; border-top:1px dashed #f1f5f9;">
+                <div style="font-size:11.5px; font-weight:700; color:#64748b; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">
+                  2. Quản lý Serial & Thao tác nâng cao:
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                  <button class="btn btn-ghost btn-sm" onclick="deleteExportedSerialsOnly()" style="border:1px solid #cbd5e1; font-weight:600;">
+                    🧹 Xóa chỉ Serial ĐÃ XUẤT
+                  </button>
+                  <button class="btn btn-ghost btn-sm" onclick="resetAllSerialsToInStock()" style="border:1px solid #cbd5e1; font-weight:600;">
+                    🔄 Chuyển tất cả Serial về Tồn kho
+                  </button>
+                  <button class="btn btn-sm" onclick="deleteAllSerials()" style="background:#fff1f2; color:#e11d48; border:1px solid #fecdd3; font-weight:700;">
+                    🔢 Xóa 100% Tất Cả Serial
+                  </button>
+                  <button class="btn btn-sm" onclick="deleteAllDocs()" style="background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; font-weight:800;">
+                    🚨 Xóa TẤT CẢ Chứng Từ / Biên Bản
+                  </button>
+                  <button class="btn btn-sm" onclick="fullDataReset()" style="background:#450a0a; color:#ffffff; font-weight:800;">
+                    ⚡ Khôi phục Trắng (Full Reset)
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Tabs: Lịch sử Chứng từ, Quản lý Serial, Cài đặt -->
-          <div class="admin-tabs mb3">
-            <button class="adm-tab-btn active" id="adm-tab-docs-btn" onclick="switchAdminTab('docs')">📋 Quản Lý & Xóa
-              Từng Biên Bản (<span id="adm-tab-docs-cnt">0</span>)</button>
-            <button class="adm-tab-btn" id="adm-tab-serials-btn" onclick="switchAdminTab('serials')">🔢 Quản Lý & Xóa
-              Từng Serial (<span id="adm-tab-serials-cnt">0</span>)</button>
-            <button class="adm-tab-btn" id="adm-tab-settings-btn" onclick="switchAdminTab('settings')">⚙️ Cài Đặt & Mật
-              Khẩu Admin</button>
+          <div class="admin-tabs mb3" style="background:#f1f5f9; padding:5px; border-radius:12px; border:1px solid #e2e8f0; gap:6px;">
+            <button class="adm-tab-btn active" id="adm-tab-docs-btn" onclick="switchAdminTab('docs')" style="font-size:13px; font-weight:700; border-radius:9px; padding:9px 18px;">
+              📋 Quản Lý & Xóa Từng Biên Bản (<span id="adm-tab-docs-cnt">0</span>)
+            </button>
+            <button class="adm-tab-btn" id="adm-tab-serials-btn" onclick="switchAdminTab('serials')" style="font-size:13px; font-weight:700; border-radius:9px; padding:9px 18px;">
+              🔢 Quản Lý & Xóa Từng Serial (<span id="adm-tab-serials-cnt">0</span>)
+            </button>
+            <button class="adm-tab-btn" id="adm-tab-settings-btn" onclick="switchAdminTab('settings')" style="font-size:13px; font-weight:700; border-radius:9px; padding:9px 18px;">
+              ⚙️ Cài Đặt & Mật Khẩu Admin
+            </button>
           </div>
 
           <!-- Tab 1: Danh sách chứng từ để xem & xóa lẻ -->
@@ -1539,7 +1638,7 @@
                     <th>Thời gian sao lưu</th>
                     <th>Lý do sao lưu</th>
                     <th>Số loại SP</th>
-                    <th>Số mã Serial</th>
+                    <th>Tổng tồn kho</th>
                     <th>Tổng chứng từ</th>
                     <th class="tr" style="width:200px">Thao tác</th>
                   </tr>
@@ -1848,34 +1947,53 @@
     </div>
   </div>
 
-  <!-- Modal Đổi Vị Trí Kho / Tầng -->
+  <!-- Modal Đổi Vị Trí Kho / Tầng & Điền Số Lượng -->
   <div class="mo-overlay" id="mo-location">
-    <div class="mo">
-      <div class="mo-hd"><span class="mo-title">🏢 Cập Nhật Vị Trí / Tầng Kho</span><button class="mo-x"
-          onclick="closeModal('mo-location')">✕</button></div>
+    <div class="mo" style="max-width:540px">
+      <div class="mo-hd">
+        <span class="mo-title">🏢 Cập Nhật Vị Trí & Số Lượng Theo Tầng</span>
+        <button class="mo-x" onclick="closeModal('mo-location')">✕</button>
+      </div>
       <div class="mo-body">
         <input type="hidden" id="loc-pid" />
-        <div class="fg mb3">
-          <label class="flabel">Sản phẩm</label>
-          <div id="loc-pname" class="fw7 fs14" style="color:var(--blue)"></div>
-        </div>
-        <div class="fg mb3">
-          <label class="flabel">Chọn Tầng / Vị trí kho <span class="req">*</span></label>
-          <select class="fs" id="loc-select" onchange="onLocSelectChange(this.value)">
-            <option value="Tầng 1">🏢 Tầng 1</option>
-            <option value="Tầng 2">🏢 Tầng 2</option>
-            <option value="Tầng 3">🏢 Tầng 3</option>
 
-            <option value="custom">✏️ Vị trí khác (Nhập tự do)...</option>
-          </select>
+        <!-- Thông tin SP và Tổng tồn kho -->
+        <div style="background:var(--bg2, #f8fafc); border:1px solid var(--border, #e2e8f0); border-radius:8px; padding:12px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+            <div style="flex:1">
+              <div class="fs12 c3">Sản phẩm:</div>
+              <div id="loc-pname" class="fw7 fs14" style="color:var(--blue, #2563eb); margin-top:2px;"></div>
+              <div id="loc-ptype" class="fs11 c3" style="margin-top:2px;"></div>
+            </div>
+            <div style="text-align:right; min-width:110px;">
+              <div class="fs12 c3">Tổng tồn kho:</div>
+              <div id="loc-total-stock" class="fw8 fs18" style="color:#16a34a; margin-top:2px;">0 cái</div>
+            </div>
+          </div>
         </div>
-        <div class="fg" id="loc-custom-wrap" style="display:none">
-          <label class="flabel">Nhập vị trí kho chi tiết</label>
-          <input type="text" class="fi" id="loc-custom" placeholder="Ví dụ: Tầng 1 - Kệ A3, Tầng 2 - Tủ B..." />
+
+        <!-- Trạng thái phân bổ -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <label class="flabel mb0" style="margin-bottom:0; font-weight:600;">Điền số lượng tồn kho theo tầng:</label>
+          <div id="loc-alloc-status" class="fs12 fw7"></div>
+        </div>
+
+        <!-- Danh sách tầng -->
+        <div id="loc-floors-container" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+          <!-- Render dynamically by JS -->
+        </div>
+
+        <!-- Thêm tầng khác -->
+        <button type="button" class="btn btn-ghost btn-sm" onclick="addCustomFloorRow()" style="font-size:12px; margin-bottom:12px;">
+          ➕ Thêm tầng / vị trí khác
+        </button>
+
+        <div class="fs12 c3" style="background:#fffbeb; border:1px solid #fef3c7; border-radius:6px; padding:8px 10px; color:#92400e; line-height:1.4;">
+          💡 <strong>Hướng dẫn:</strong> Bạn có thể điền số lượng cụ thể cho từng tầng (ví dụ: Tầng 1: 5 cái, Tầng 3: 3 cái). Bấm nút <em>"Tất cả"</em> để chuyển toàn bộ tồn kho sang tầng đó.
         </div>
       </div>
       <div class="mo-ft">
-        <button class="btn btn-success" onclick="saveProductLocation()">💾 Cập nhật vị trí</button>
+        <button class="btn btn-success" onclick="saveProductLocation()">💾 Cập nhật vị trí & số lượng</button>
         <button class="btn btn-ghost" onclick="closeModal('mo-location')">Hủy</button>
       </div>
     </div>
@@ -1884,8 +2002,8 @@
   <!-- TOASTS -->
   <div id="toasts"></div>
 
-  <script src="data.js?v=18.0"></script>
-  <script src="app.js?v=18.0"></script>
+  <script src="data.js?v=18.6"></script>
+  <script src="app.js?v=18.6"></script>
 </body>
 
 </html>

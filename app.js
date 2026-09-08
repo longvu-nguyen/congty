@@ -119,6 +119,120 @@ function load() {
   loadSavedFirebaseConfig();
 }
 
+function reconcileDatabaseIntegrity() {
+  if (!db || !db.products) return;
+
+  // 0. Tự động đồng bộ các công ty mẫu từ INITIAL_COMPANIES vào db.companies
+  if (typeof INITIAL_COMPANIES !== 'undefined' && Array.isArray(INITIAL_COMPANIES)) {
+    if (!db.companies) db.companies = [];
+    INITIAL_COMPANIES.forEach(initC => {
+      const idx = db.companies.findIndex(c => c.id === initC.id || c.name === initC.name);
+      if (idx === -1) {
+        db.companies.push({ ...initC });
+      } else {
+        if (!db.companies[idx].taxCode && initC.taxCode) db.companies[idx].taxCode = initC.taxCode;
+        if (!db.companies[idx].phone && initC.phone) db.companies[idx].phone = initC.phone;
+        if (!db.companies[idx].address && initC.address) db.companies[idx].address = initC.address;
+        if (!db.companies[idx].deliveryAddress && initC.deliveryAddress) db.companies[idx].deliveryAddress = initC.deliveryAddress;
+        if (!db.companies[idx].rep && initC.rep) db.companies[idx].rep = initC.rep;
+        if (!db.companies[idx].repPosition && initC.repPosition) db.companies[idx].repPosition = initC.repPosition;
+      }
+    });
+  }
+
+  // 1. Phục hồi và dọn dẹp các serial
+  Object.keys(db.serials || {}).forEach(sn => {
+    const s = db.serials[sn];
+    if (!s || !s.productId || !getProduct(s.productId)) {
+      delete db.serials[sn];
+      return;
+    }
+    // Đánh dấu serial xuất không có chứng từ nhập là fromQty
+    if (s.status === 'exported' && !s.importDocId) {
+      s.fromQty = true;
+    }
+    // Nếu là serial tạm (fromQty) nhưng chứng từ xuất/bàn giao không còn tồn tại -> xóa bỏ
+    if (s.fromQty && s.exportDocId) {
+      const hasExportDoc = (db.exportDocs || []).some(d => d.id === s.exportDocId) ||
+                           (db.bbghDocs || []).some(d => d.id === s.exportDocId);
+      if (!hasExportDoc) {
+        delete db.serials[sn];
+        return;
+      }
+    }
+  });
+
+  // 2. Bảo toàn số lượng tồn kho của các sản phẩm
+  db.products.forEach(p => {
+    // Đếm tổng nhập không serial từ importDocs
+    let importedQty = 0;
+    (db.importDocs || []).forEach(doc => {
+      (doc.items || []).forEach(item => {
+        if (item.productId === p.id && item.useSerial === false) {
+          importedQty += (Number(item.qty) || 0);
+        }
+      });
+    });
+
+    // Đếm tổng xuất không serial từ exportDocs và bbghDocs
+    let exportedQty = 0;
+    (db.exportDocs || []).forEach(doc => {
+      (doc.items || []).forEach(item => {
+        if (item.productId === p.id) {
+          if (!item.serials || item.serials.length === 0) {
+            exportedQty += (Number(item.qty) || 0);
+          } else {
+            item.serials.forEach(sn => {
+              if (db.serials[sn] && db.serials[sn].fromQty) exportedQty += 1;
+            });
+          }
+        }
+      });
+    });
+    (db.bbghDocs || []).forEach(doc => {
+      (doc.items || []).forEach(item => {
+        if (item.productId === p.id) {
+          if (!item.serials || item.serials.length === 0) {
+            exportedQty += (Number(item.qty) || 0);
+          } else {
+            item.serials.forEach(sn => {
+              if (db.serials[sn] && db.serials[sn].fromQty) exportedQty += 1;
+            });
+          }
+        }
+      });
+    });
+
+    if (importedQty > 0 && (p.initialStock || 0) < importedQty) {
+      p.initialStock = importedQty;
+    }
+
+    // Chuẩn hóa p.exported theo đúng chứng từ thực tế
+    p.exported = exportedQty;
+
+    // Đảm bảo floorStock đồng bộ với tồn kho thực tế (hàng không serial)
+    const curStock = getStockCount(p.id);
+    const snInStock = Object.values(db.serials || {}).filter(s => s.productId === p.id && s.status === 'in-stock').length;
+    const nonSnStock = Math.max(0, curStock - snInStock);
+
+    if (nonSnStock > 0) {
+      p.floorStock = p.floorStock || {};
+      const floorSum = Object.values(p.floorStock).reduce((a, b) => a + (Number(b) || 0), 0);
+      if (floorSum === 0) {
+        p.floorStock = { [p.location || 'Tầng 1']: nonSnStock };
+      } else if (floorSum !== nonSnStock) {
+        const diff = nonSnStock - floorSum;
+        const mainFloor = Object.keys(p.floorStock)[0] || 'Tầng 1';
+        p.floorStock[mainFloor] = Math.max(0, (p.floorStock[mainFloor] || 0) + diff);
+      }
+    } else {
+      if (p.floorStock) {
+        for (const k of Object.keys(p.floorStock)) p.floorStock[k] = 0;
+      }
+    }
+  });
+}
+
 function populateDatalist() {
   const dl = document.getElementById('dl-companies');
   if (dl) dl.innerHTML = db.companies.map(c => `<option value="${esc(c.name)}"></option>`).join('');
@@ -2085,8 +2199,27 @@ function populateBbghSelects() {
   if (selRep) selRep.innerHTML = '<option value="">-- Chọn nhân viên --</option>' + db.employees.map(e => `<option value="${esc(e.id)}">${esc(e.name)} — ${esc(e.position || '')}</option>`).join('');
 }
 
-function onBbghSellerChange() { const co = getCompany(document.getElementById('bbgh-seller').value); if (!co) return; document.getElementById('bbgh-seller-addr').value = co.address || ''; document.getElementById('bbgh-seller-phone').value = co.phone || ''; document.getElementById('bbgh-seller-tax').value = co.taxCode || ''; }
-function onBbghBuyerChange() { const co = getCompany(document.getElementById('bbgh-buyer').value); if (!co) return; document.getElementById('bbgh-buyer-addr').value = co.address || ''; document.getElementById('bbgh-buyer-deliv').value = co.deliveryAddress || ''; document.getElementById('bbgh-buyer-phone').value = co.phone || ''; document.getElementById('bbgh-buyer-tax').value = co.taxCode || ''; document.getElementById('bbgh-buyer-rep').value = co.rep || ''; document.getElementById('bbgh-buyer-reppos').value = co.repPosition || ''; }
+function onBbghSellerChange() {
+  const co = getCompany(document.getElementById('bbgh-seller').value);
+  if (!co) return;
+  const nameEl = document.getElementById('bbgh-seller-name');
+  if (nameEl) nameEl.value = co.name || '';
+  document.getElementById('bbgh-seller-addr').value = co.address || '';
+  document.getElementById('bbgh-seller-phone').value = co.phone || '';
+  document.getElementById('bbgh-seller-tax').value = co.taxCode || '';
+}
+function onBbghBuyerChange() {
+  const co = getCompany(document.getElementById('bbgh-buyer').value);
+  if (!co) return;
+  const nameEl = document.getElementById('bbgh-buyer-name');
+  if (nameEl) nameEl.value = co.name || '';
+  document.getElementById('bbgh-buyer-addr').value = co.address || '';
+  document.getElementById('bbgh-buyer-deliv').value = co.deliveryAddress || '';
+  document.getElementById('bbgh-buyer-phone').value = co.phone || '';
+  document.getElementById('bbgh-buyer-tax').value = co.taxCode || '';
+  document.getElementById('bbgh-buyer-rep').value = co.rep || '';
+  document.getElementById('bbgh-buyer-reppos').value = co.repPosition || '';
+}
 function onBbghRepChange() { const e = getEmployee(document.getElementById('bbgh-seller-rep').value); if (e) document.getElementById('bbgh-seller-reppos').value = e.position || ''; }
 function renderBbghItems() {
   const c = document.getElementById('bbgh-items');
@@ -2180,8 +2313,19 @@ function confirmBbghProduct() {
 
 function submitBbgh() {
   const date = document.getElementById('bbgh-date').value;
-  const sellerId = document.getElementById('bbgh-seller').value;
-  const buyerId = document.getElementById('bbgh-buyer').value;
+  let sellerId = document.getElementById('bbgh-seller').value;
+  let buyerId = document.getElementById('bbgh-buyer').value;
+  const sellerName = document.getElementById('bbgh-seller-name')?.value.trim();
+  const buyerName = document.getElementById('bbgh-buyer-name')?.value.trim();
+
+  if (!sellerId && sellerName) {
+    saveQuickCompany('seller');
+    sellerId = document.getElementById('bbgh-seller').value;
+  }
+  if (!buyerId && buyerName) {
+    saveQuickCompany('buyer');
+    buyerId = document.getElementById('bbgh-buyer').value;
+  }
   const sellerRepId = document.getElementById('bbgh-seller-rep').value;
   const docNum = document.getElementById('bbgh-num').value.trim() || ('BBGH-' + new Date().getFullYear() + '-' + String(db.bbghDocs.length + 1).padStart(4, '0'));
   if (!date) { toast('Chọn ngày', 'wrn'); return; } if (!sellerId) { toast('Chọn bên bán', 'wrn'); return; } if (!buyerId) { toast('Chọn bên mua', 'wrn'); return; } if (bbghItems.length === 0) { toast('Chưa có hàng hóa', 'wrn'); return; }
@@ -3848,22 +3992,47 @@ function deleteSingleDoc(type, id) {
     return;
   }
 
-  // Hoàn tác trạng thái serial nếu là chứng từ xuất / bàn giao
+  // Hoàn tác trạng thái serial và tồn kho
   if (type === 'export' || type === 'bbgh') {
     (doc.items || []).forEach(item => {
-      (item.serials || []).forEach(sn => {
-        if (db.serials[sn] && db.serials[sn].exportDocId === id) {
-          db.serials[sn].status = 'in-stock';
-          delete db.serials[sn].exportDate;
-          delete db.serials[sn].exportTo;
-          delete db.serials[sn].exportReceiver;
-          delete db.serials[sn].exportDocId;
+      const snList = item.serials || [];
+      if (snList.length > 0) {
+        snList.forEach(sn => {
+          if (db.serials[sn] && db.serials[sn].exportDocId === id) {
+            if (db.serials[sn].fromQty) {
+              delete db.serials[sn];
+            } else {
+              db.serials[sn].status = 'in-stock';
+              delete db.serials[sn].exportDate;
+              delete db.serials[sn].exportTo;
+              delete db.serials[sn].exportReceiver;
+              delete db.serials[sn].exportDocId;
+            }
+          }
+        });
+      }
+    });
+  } else if (type === 'import') {
+    (doc.items || []).forEach(item => {
+      const snList = item.serials || [];
+      if (snList.length > 0) {
+        snList.forEach(sn => {
+          if (db.serials[sn] && db.serials[sn].importDocId === id) {
+            delete db.serials[sn];
+          }
+        });
+      } else {
+        const p = getProduct(item.productId);
+        const qty = Number(item.qty) || 0;
+        if (p && qty > 0) {
+          p.initialStock = Math.max(0, (p.initialStock || 0) - qty);
         }
-      });
+      }
     });
   }
 
   docList.splice(idx, 1);
+  reconcileDatabaseIntegrity();
   save();
   toast(`🗑️ Đã xóa thành công ${typeName}: ${doc.docNumber}`, 'ok');
 
@@ -3889,27 +4058,48 @@ function deleteAllDocsOfType(type) {
     return;
   }
 
-  if (type === 'import') db.importDocs = [];
+  if (type === 'import') {
+    const impIds = new Set((db.importDocs || []).map(d => d.id));
+    Object.keys(db.serials || {}).forEach(sn => {
+      if (db.serials[sn] && impIds.has(db.serials[sn].importDocId)) {
+        delete db.serials[sn];
+      }
+    });
+    db.importDocs = [];
+  }
   else if (type === 'export') {
-    Object.values(db.serials).forEach(s => {
-      if (s.status === 'exported') {
-        s.status = 'in-stock';
-        delete s.exportDate; delete s.exportTo; delete s.exportReceiver; delete s.exportDocId;
+    const expIds = new Set((db.exportDocs || []).map(d => d.id));
+    Object.keys(db.serials || {}).forEach(sn => {
+      const s = db.serials[sn];
+      if (s && expIds.has(s.exportDocId)) {
+        if (s.fromQty) {
+          delete db.serials[sn];
+        } else {
+          s.status = 'in-stock';
+          delete s.exportDate; delete s.exportTo; delete s.exportReceiver; delete s.exportDocId;
+        }
       }
     });
     db.exportDocs = [];
   }
   else if (type === 'bbgh') {
-    Object.values(db.serials).forEach(s => {
-      if (s.status === 'exported') {
-        s.status = 'in-stock';
-        delete s.exportDate; delete s.exportTo; delete s.exportReceiver; delete s.exportDocId;
+    const bbghIds = new Set((db.bbghDocs || []).map(d => d.id));
+    Object.keys(db.serials || {}).forEach(sn => {
+      const s = db.serials[sn];
+      if (s && bbghIds.has(s.exportDocId)) {
+        if (s.fromQty) {
+          delete db.serials[sn];
+        } else {
+          s.status = 'in-stock';
+          delete s.exportDate; delete s.exportTo; delete s.exportReceiver; delete s.exportDocId;
+        }
       }
     });
     db.bbghDocs = [];
   }
   else if (type === 'quote') db.quotations = [];
 
+  reconcileDatabaseIntegrity();
   save();
   toast(`✅ Đã xóa toàn bộ biên bản ${typeName}!`, 'ok');
   renderAdminPage();
@@ -3927,14 +4117,28 @@ function deleteAllDocs() {
   if (!confirm(`🚨 CẢNH BÁO NGUY HIỂM:\nBạn có chắc chắn muốn XÓA SẠCH TẤT CẢ ${total} biên bản (Nhập, Xuất, BBGH, Báo giá)?\n\nToàn bộ dữ liệu chứng từ sẽ bị xóa vĩnh viễn!`)) {
     return;
   }
+  Object.keys(db.serials || {}).forEach(sn => {
+    if (db.serials[sn]?.fromQty) {
+      delete db.serials[sn];
+    } else if (db.serials[sn]) {
+      db.serials[sn].status = 'in-stock';
+      delete db.serials[sn].exportDate;
+      delete db.serials[sn].exportTo;
+      delete db.serials[sn].exportReceiver;
+      delete db.serials[sn].exportDocId;
+    }
+  });
+
   db.importDocs = [];
   db.exportDocs = [];
   db.bbghDocs = [];
   db.quotations = [];
-  Object.values(db.serials).forEach(s => {
-    s.status = 'in-stock';
-    delete s.exportDate; delete s.exportTo; delete s.exportReceiver; delete s.exportDocId;
-  });
+  
+  if (db.products) {
+    db.products.forEach(p => { p.exported = 0; });
+  }
+
+  reconcileDatabaseIntegrity();
   save();
   toast('✅ Đã xóa sạch tất cả biên bản & chứng từ!', 'ok');
   renderAdminPage();
@@ -4126,19 +4330,25 @@ function resetAllSerialsToInStock() {
 }
 
 function fullDataReset() {
-  if (!confirm(`⚡ KHÔI PHỤC TRẮNG HỆ THỐNG:\n- Xóa toàn bộ Biên bản Nhập/Xuất/BBGH/Báo giá\n- Xóa toàn bộ Serial\n- Đưa tồn kho về mặc định\n\nBạn có chắc chắn muốn tiến hành?`)) {
+  if (!confirm(`⚡ KHÔI PHỤC TRẮNG HỆ THỐNG:\n- Đưa toàn bộ tồn kho về 0 (trắng tinh)\n- Xóa toàn bộ Biên bản Nhập/Xuất/BBGH/Báo giá/Thuê máy\n- Xóa toàn bộ Serial trong kho\n\nBạn có chắc chắn muốn làm lại từ đầu trắng tinh?`)) {
     return;
   }
   db.importDocs = [];
   db.exportDocs = [];
   db.bbghDocs = [];
   db.quotations = [];
+  db.rentals = [];
   db.serials = {};
   if (db.products) {
-    db.products.forEach(p => { p.exported = 0; });
+    db.products.forEach(p => {
+      p.initialStock = 0;
+      p.exported = 0;
+      p.floorStock = {};
+    });
   }
+  localStorage.setItem('kho_clean_slate_zero_all', '1');
   save();
-  toast('✨ Đã làm sạch toàn bộ hệ thống về trạng thái mới!', 'ok');
+  toast('✨ Đã làm sạch toàn bộ hệ thống về trạng thái trắng tinh (0 tồn kho, 0 chứng từ)!', 'ok');
   renderAdminPage();
   renderAllHistory();
   renderSerials();
@@ -5004,3 +5214,99 @@ function deleteRental(id) {
   if (document.getElementById('page-dashboard')?.classList.contains('active')) renderDashboard();
 }
 
+
+
+
+// ─── TÍNH NĂNG ĐIỀN TÊN CÔNG TY & NÚT LƯU CÔNG TY NHANH ───────────────
+function onBbghBuyerNameInput(val) {
+  val = (val || '').trim().toLowerCase();
+  if (!val) return;
+  const co = db.companies.find(c => c.name.toLowerCase() === val || (c.shortName && c.shortName.toLowerCase() === val));
+  if (co) {
+    const sel = document.getElementById('bbgh-buyer');
+    if (sel) sel.value = co.id;
+    if (co.address) document.getElementById('bbgh-buyer-addr').value = co.address;
+    if (co.deliveryAddress) document.getElementById('bbgh-buyer-deliv').value = co.deliveryAddress;
+    if (co.phone) document.getElementById('bbgh-buyer-phone').value = co.phone;
+    if (co.taxCode) document.getElementById('bbgh-buyer-tax').value = co.taxCode;
+    if (co.rep) document.getElementById('bbgh-buyer-rep').value = co.rep;
+    if (co.repPosition) document.getElementById('bbgh-buyer-reppos').value = co.repPosition;
+  }
+}
+
+function onBbghSellerNameInput(val) {
+  val = (val || '').trim().toLowerCase();
+  if (!val) return;
+  const co = db.companies.find(c => c.name.toLowerCase() === val || (c.shortName && c.shortName.toLowerCase() === val));
+  if (co) {
+    const sel = document.getElementById('bbgh-seller');
+    if (sel) sel.value = co.id;
+    if (co.address) document.getElementById('bbgh-seller-addr').value = co.address;
+    if (co.phone) document.getElementById('bbgh-seller-phone').value = co.phone;
+    if (co.taxCode) document.getElementById('bbgh-seller-tax').value = co.taxCode;
+  }
+}
+
+function saveQuickCompany(type) {
+  const isBuyer = type === 'buyer';
+  const nameInp = document.getElementById(isBuyer ? 'bbgh-buyer-name' : 'bbgh-seller-name');
+  const name = nameInp ? nameInp.value.trim() : '';
+  if (!name) {
+    toast('⚠️ Vui lòng nhập Tên công ty trước khi lưu', 'wrn');
+    nameInp?.focus();
+    return;
+  }
+
+  const addr = document.getElementById(isBuyer ? 'bbgh-buyer-addr' : 'bbgh-seller-addr')?.value.trim() || '';
+  const deliv = isBuyer ? (document.getElementById('bbgh-buyer-deliv')?.value.trim() || '') : '';
+  const phone = document.getElementById(isBuyer ? 'bbgh-buyer-phone' : 'bbgh-seller-phone')?.value.trim() || '';
+  const tax = document.getElementById(isBuyer ? 'bbgh-buyer-tax' : 'bbgh-seller-tax')?.value.trim() || '';
+  const rep = isBuyer ? (document.getElementById('bbgh-buyer-rep')?.value.trim() || '') : (document.getElementById('bbgh-seller-repname')?.value.trim() || '');
+  const repPos = document.getElementById(isBuyer ? 'bbgh-buyer-reppos' : 'bbgh-seller-reppos')?.value.trim() || '';
+
+  let co = db.companies.find(c => c.name.toLowerCase() === name.toLowerCase());
+  if (co) {
+    if (addr) co.address = addr;
+    if (deliv) co.deliveryAddress = deliv;
+    if (phone) co.phone = phone;
+    if (tax) co.taxCode = tax;
+    if (rep) co.rep = rep;
+    if (repPos) co.repPosition = repPos;
+    toast(`✅ Đã cập nhật thông tin công ty "${name}"!`, 'ok');
+  } else {
+    co = {
+      id: genId('CTY'),
+      name,
+      shortName: name.length > 25 ? name.split(' ').slice(0, 3).join(' ') : name,
+      address: addr,
+      deliveryAddress: deliv || addr,
+      phone,
+      taxCode: tax,
+      rep,
+      repPosition: repPos,
+      type: isBuyer ? 'buyer' : 'seller',
+      note: ''
+    };
+    db.companies.push(co);
+    toast(`💾 Đã lưu mới công ty "${name}" vào danh bạ!`, 'ok');
+  }
+
+  save();
+  populateDatalist();
+
+  const selEl = document.getElementById(isBuyer ? 'bbgh-buyer' : 'bbgh-seller');
+  if (selEl) {
+    let opt = Array.from(selEl.options).find(o => o.value === co.id);
+    if (!opt) {
+      opt = document.createElement('option');
+      opt.value = co.id;
+      opt.textContent = co.name;
+      selEl.appendChild(opt);
+    }
+    selEl.value = co.id;
+  }
+
+  if (document.getElementById('page-companies')?.classList.contains('active')) {
+    renderCompanies();
+  }
+}
