@@ -1336,54 +1336,183 @@ function resetInvFilters() {
   renderInventory();
 }
 
+let _locCurrentPid = null;
+let _locTotalStock = 0;
+
 function openLocationModal(pid) {
-  const rawP = getProduct(pid); if (!rawP) return;
+  const rawP = getProduct(pid);
+  if (!rawP) return;
   const p = enrichProduct(rawP);
-  document.getElementById('loc-pid').value = pid;
-  document.getElementById('loc-pname').textContent = `[${p.code}] ${p.name}`;
+  _locCurrentPid = pid;
 
-  const sel = document.getElementById('loc-select');
-  const customWrap = document.getElementById('loc-custom-wrap');
-  const customInp = document.getElementById('loc-custom');
+  const totalStock = getStockCount(pid);
+  _locTotalStock = totalStock;
 
-  if (['Tầng 1', 'Tầng 2', 'Tầng 3', 'Tầng 4'].includes(p.location)) {
-    sel.value = p.location;
-    customWrap.style.display = 'none';
-  } else {
-    sel.value = 'custom';
-    customWrap.style.display = 'block';
-    customInp.value = p.location;
+  const pidEl = document.getElementById('loc-pid');
+  const nameEl = document.getElementById('loc-pname');
+  const typeEl = document.getElementById('loc-ptype');
+  const totalStockEl = document.getElementById('loc-total-stock');
+
+  if (pidEl) pidEl.value = pid;
+  if (nameEl) nameEl.textContent = `[${p.code}] ${p.name}`;
+  if (typeEl) typeEl.textContent = `Hãng: ${p.brand || 'Khác'} · Ngành: ${p.category || 'Khác'} · ĐVT: ${p.unit || 'Cái'}`;
+  if (totalStockEl) totalStockEl.textContent = `${totalStock} ${p.unit || 'cái'}`;
+
+  const floors = getStockByFloor(pid);
+  const standardFloors = ['Tầng 1', 'Tầng 2', 'Tầng 3', 'Tầng 4'];
+  const allFloorKeys = [...new Set([...standardFloors, ...Object.keys(floors || {}), rawP.location].filter(Boolean))];
+
+  const container = document.getElementById('loc-floors-container');
+  if (container) {
+    container.innerHTML = allFloorKeys.map((fName) => {
+      const currentVal = floors[fName] || (allFloorKeys.length === 1 || rawP.location === fName ? totalStock : 0);
+      const isCustom = !standardFloors.includes(fName);
+      return `
+        <div class="loc-floor-row" style="display:flex; align-items:center; gap:8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px;">
+          <div style="flex:1; display:flex; align-items:center; gap:6px;">
+            <span style="font-size:16px;">🏢</span>
+            ${isCustom 
+              ? `<input type="text" class="fi fi-sm loc-floor-name" value="${esc(fName)}" style="width:130px; font-weight:700;" placeholder="Tên tầng..." />`
+              : `<span class="fw7 fs13 loc-floor-label" data-floor="${esc(fName)}">${esc(fName)}</span>`
+            }
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <input type="number" min="0" class="fi fi-sm loc-floor-qty" data-floor="${esc(fName)}" value="${currentVal}" style="width:75px; text-align:right; font-weight:700;" oninput="updateLocAllocStatus()" />
+            <span class="fs12 c3">${esc(p.unit || 'cái')}</span>
+            <button type="button" class="btn btn-ghost btn-xs" onclick="setLocFloorAll('${esc(fName)}')" title="Chuyển toàn bộ hàng sang tầng này" style="white-space:nowrap; padding:3px 8px; font-weight:600;">
+              Toàn bộ
+            </button>
+            ${isCustom ? `<button type="button" class="btn btn-ghost btn-xs" onclick="this.closest('.loc-floor-row').remove(); updateLocAllocStatus();" title="Xóa dòng tầng này" style="color:#ef4444; padding:3px 6px;">✕</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
   }
+
+  updateLocAllocStatus();
   openModal('mo-location');
 }
 
-function onLocSelectChange(val) {
-  const customWrap = document.getElementById('loc-custom-wrap');
-  if (val === 'custom') {
-    customWrap.style.display = 'block';
-    document.getElementById('loc-custom').focus();
+function setLocFloorAll(targetFloor) {
+  const rows = document.querySelectorAll('#loc-floors-container .loc-floor-row');
+  rows.forEach(row => {
+    const qtyInput = row.querySelector('.loc-floor-qty');
+    const label = row.querySelector('.loc-floor-label')?.getAttribute('data-floor') || row.querySelector('.loc-floor-name')?.value;
+    if (qtyInput) {
+      if (label === targetFloor) {
+        qtyInput.value = _locTotalStock;
+      } else {
+        qtyInput.value = 0;
+      }
+    }
+  });
+  updateLocAllocStatus();
+}
+
+function updateLocAllocStatus() {
+  const statusEl = document.getElementById('loc-alloc-status');
+  if (!statusEl) return;
+
+  const rows = document.querySelectorAll('#loc-floors-container .loc-floor-row');
+  let currentSum = 0;
+  rows.forEach(row => {
+    const q = parseInt(row.querySelector('.loc-floor-qty')?.value, 10) || 0;
+    currentSum += q;
+  });
+
+  const diff = _locTotalStock - currentSum;
+  if (diff === 0) {
+    statusEl.innerHTML = `<span style="color:#16a34a; font-weight:700;">✅ Khớp tổng tồn: ${currentSum}/${_locTotalStock}</span>`;
+  } else if (diff > 0) {
+    statusEl.innerHTML = `<span style="color:#f59e0b; font-weight:700;">⚠️ Chưa gán tầng: ${diff} cái</span>`;
   } else {
-    customWrap.style.display = 'none';
+    statusEl.innerHTML = `<span style="color:#ef4444; font-weight:700;">⚠️ Vượt quá tổng tồn: ${-diff} cái</span>`;
   }
 }
 
-function saveProductLocation() {
-  const pid = document.getElementById('loc-pid').value;
-  const rawP = getProduct(pid); if (!rawP) return;
+function addCustomFloorRow() {
+  const container = document.getElementById('loc-floors-container');
+  if (!container) return;
+  const unit = getProduct(_locCurrentPid)?.unit || 'cái';
+  const newRow = document.createElement('div');
+  newRow.className = 'loc-floor-row';
+  newRow.style.cssText = 'display:flex; align-items:center; gap:8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px;';
+  newRow.innerHTML = `
+    <div style="flex:1; display:flex; align-items:center; gap:6px;">
+      <span style="font-size:16px;">🏢</span>
+      <input type="text" class="fi fi-sm loc-floor-name" placeholder="Ví dụ: Tầng lửng, Kho A..." style="width:140px; font-weight:700;" />
+    </div>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <input type="number" min="0" class="fi fi-sm loc-floor-qty" value="0" style="width:75px; text-align:right; font-weight:700;" oninput="updateLocAllocStatus()" />
+      <span class="fs12 c3">${esc(unit)}</span>
+      <button type="button" class="btn btn-ghost btn-xs" onclick="this.closest('.loc-floor-row').remove(); updateLocAllocStatus();" title="Xóa dòng tầng này" style="color:#ef4444; padding:3px 6px;">✕</button>
+    </div>
+  `;
+  container.appendChild(newRow);
+  newRow.querySelector('.loc-floor-name')?.focus();
+  updateLocAllocStatus();
+}
 
-  const selVal = document.getElementById('loc-select').value;
-  let newLoc = selVal;
-  if (selVal === 'custom') {
-    newLoc = document.getElementById('loc-custom').value.trim();
-    if (!newLoc) { toast('Nhập vị trí kho', 'wrn'); return; }
+function saveProductLocation() {
+  const pid = document.getElementById('loc-pid')?.value || _locCurrentPid;
+  const rawP = getProduct(pid);
+  if (!rawP) return;
+
+  const rows = document.querySelectorAll('#loc-floors-container .loc-floor-row');
+  const newFloorStock = {};
+  let totalAllocated = 0;
+  let primaryFloor = '';
+  let maxQty = -1;
+
+  rows.forEach(row => {
+    const fName = (row.querySelector('.loc-floor-label')?.getAttribute('data-floor') || row.querySelector('.loc-floor-name')?.value || '').trim();
+    const qty = Math.max(0, parseInt(row.querySelector('.loc-floor-qty')?.value, 10) || 0);
+    if (fName && qty > 0) {
+      newFloorStock[fName] = qty;
+      totalAllocated += qty;
+      if (qty > maxQty) {
+        maxQty = qty;
+        primaryFloor = fName;
+      }
+    }
+  });
+
+  if (!primaryFloor) {
+    primaryFloor = rawP.location || 'Tầng 1';
   }
 
-  rawP.location = newLoc;
+  // Cập nhật vị trí chính và phân bổ kho theo tầng
+  rawP.location = primaryFloor;
+  rawP.floorStock = newFloorStock;
+
+  // Cập nhật lại initialStock để bảo toàn đúng số lượng người dùng đã phân bổ
+  const currentExp = rawP.exported || 0;
+  rawP.initialStock = totalAllocated + currentExp;
+
+  // Cập nhật floor cho các serial in-stock nếu sản phẩm có serial
+  const inStockSerials = Object.values(db.serials || {}).filter(s => s.productId === pid && s.status === 'in-stock');
+  if (inStockSerials.length > 0) {
+    let sIdx = 0;
+    for (const [fName, fQty] of Object.entries(newFloorStock)) {
+      for (let i = 0; i < fQty && sIdx < inStockSerials.length; i++) {
+        inStockSerials[sIdx].floor = fName;
+        sIdx++;
+      }
+    }
+    while (sIdx < inStockSerials.length) {
+      inStockSerials[sIdx].floor = primaryFloor;
+      sIdx++;
+    }
+  }
+
   save();
   closeModal('mo-location');
-  toast(`✅ Đã cập nhật vị trí "${rawP.name.substring(0, 35)}" sang ${newLoc}`, 'ok');
-  if (document.getElementById('page-inventory')?.classList.contains('active')) renderInventory();
-  if (document.getElementById('page-dashboard')?.classList.contains('active')) renderDashboard();
+  toast(`✅ Đã cập nhật phân bổ vị trí tầng cho [${rawP.code}] ${rawP.name}!`, 'ok');
+
+  if (typeof renderInventory === 'function') renderInventory();
+  if (typeof renderProducts === 'function') renderProducts();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  if (typeof renderAdminPage === 'function') renderAdminPage();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2549,8 +2678,8 @@ function viewAnyDocReset() {
 function buildBbghView(doc) {
   const total = (doc.items || []).reduce((s, i) => s + (i.serials || []).length, 0);
   return `
-    <div style="background:linear-gradient(135deg,#f5f3ff 0%,#ede9fe 100%);border:1px solid #ddd6fe;border-radius:16px;padding:20px;margin-bottom:20px;text-align:center;box-shadow:var(--shadow-xs)">
-      <div style="font-size:13px;font-weight:800;letter-spacing:0.05em;color:var(--text1)">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+    <div style="background:linear-gradient(135deg,#f8faff 0%,#f1f5f9 100%);border:1px solid #cbd5e1;border-radius:16px;padding:36px 24px 24px;margin-bottom:20px;text-align:center;box-shadow:var(--shadow-xs)">
+      <div style="margin-top:20px;font-size:14px;font-weight:800;letter-spacing:0.06em;color:var(--text1);line-height:1.6">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
       <div style="font-size:12.5px;color:var(--text2);font-weight:600;margin-top:2px">Độc lập - Tự do - Hạnh phúc</div>
       <div style="font-size:18px;font-weight:900;color:#6d28d9;margin:10px 0 6px;letter-spacing:-0.01em">BIÊN BẢN BÀN GIAO HÀNG HÓA</div>
       <div style="font-size:13px;color:var(--text3)">Số: <strong style="color:var(--text1)">${esc(doc.docNumber)}</strong> | Ngày: <strong style="color:var(--text1)">${fmtDate(doc.date)}</strong></div>
@@ -2654,24 +2783,26 @@ function printBbgh(id) {
   const w = window.open('', '_blank', 'width=900,height=700');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(doc.docNumber)}</title>
   <style>
-  body{font-family:'Times New Roman',serif;margin:28px 34px;font-size:13px;color:#111;line-height:1.5}
+  body{font-family:'Times New Roman',serif;margin:38px 36px;font-size:13.5px;color:#111;line-height:1.6}
   .center{text-align:center}
-  .qh{font-weight:bold;font-size:15px}
+  .qh{font-weight:bold;font-size:15px;letter-spacing:0.03em}
   .qh-sub{font-style:italic}
-  .qh-div{font-weight:bold;margin:2px 0 8px}
-  .title{font-weight:bold;font-size:17px;margin:6px 0 12px}
+  .qh-div{font-weight:bold;margin:4px 0 12px}
+  .title{font-weight:bold;font-size:18px;margin:10px 0 14px}
   .party b{font-weight:bold}
-  .row{margin:2px 0}
-  h4{margin:14px 0 6px;font-size:13px}
-  table{width:100%;border-collapse:collapse;margin:10px 0 14px}
-  th,td{border:1px solid #000;padding:5px 7px;font-size:12.5px;vertical-align:middle}
-  th{font-weight:bold}
-  .sn{font-family:Calibri,Arial,sans-serif;font-size:12px;text-align:center}
-  .closing{margin:2px 0;padding-left:16px;text-indent:-16px}
-  .sr{display:grid;grid-template-columns:1fr 1fr;gap:20px;text-align:center;margin-top:26px}
+  .row{margin:4px 0}
+  h4{margin:18px 0 10px;font-size:13.5px}
+  table{width:100%;border-collapse:collapse;margin:14px 0 18px}
+  th,td{border:1px solid #000;padding:10px 12px;font-size:13px;vertical-align:middle;line-height:1.5}
+  th{font-weight:bold;background:#f9fafb}
+  .sn{font-family:Calibri,Arial,sans-serif;font-size:12.5px;text-align:center}
+  .closing{margin:6px 0;padding-left:16px;text-indent:-16px;line-height:1.6}
+  .sr{display:grid;grid-template-columns:1fr 1fr;gap:20px;text-align:center;margin-top:32px}
   .sr b{font-size:13px}
   @media print{body{margin:10mm 12mm}}
   </style></head><body>
+  <!-- 2 ô / 2 dòng lùi đầu trang để Quốc hiệu không bị sát mép trên -->
+  <div style="height:35px"></div>
   <div class="center qh">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
   <div class="center qh-sub">Độc lập - Tự do - Hạnh phúc</div>
   <div class="center qh-div">--------o0o--------</div>
@@ -2738,6 +2869,7 @@ function exportBbghToWord(doc) {
     const cell = (children, align = AlignmentType.LEFT, width = null, borders = B, vAlign = VerticalAlign.CENTER, extra = {}) =>
       new TableCell({
         children: Array.isArray(children) ? children : [children], borders, verticalAlign: vAlign,
+        margins: { top: 160, bottom: 160, left: 160, right: 160 },
         ...(width ? { width: { size: width, type: WidthType.DXA } } : {}), ...extra
       });
 
@@ -2883,7 +3015,7 @@ function exportBbghToWord(doc) {
       return new TableRow({
         children: [
           cell([p([r(String(idx + 1), 24)], AlignmentType.CENTER, 0)], AlignmentType.CENTER, colWidths[0]),
-          new TableCell({ children: nameParas, borders: B, verticalAlign: VerticalAlign.CENTER, width: { size: colWidths[1], type: WidthType.DXA } }),
+          new TableCell({ children: nameParas, borders: B, verticalAlign: VerticalAlign.CENTER, width: { size: colWidths[1], type: WidthType.DXA }, margins: { top: 160, bottom: 160, left: 160, right: 160 } }),
           cell([p([r(String(sl), 24)], AlignmentType.CENTER, 0)], AlignmentType.CENTER, colWidths[2]),
           cell([p([r(unit, 24)], AlignmentType.CENTER, 0)], AlignmentType.CENTER, colWidths[3]),
           ...serialCells,
@@ -2922,13 +3054,17 @@ function exportBbghToWord(doc) {
       { indent: { left: 360, hanging: 360 } });
 
     const docxDoc = new Document({
-      styles: { default: { document: { run: { font: TNR, size: 24 }, paragraph: { spacing: { after: 80 } } } } },
+      styles: { default: { document: { run: { font: TNR, size: 24 }, paragraph: { spacing: { line: 300, lineRule: 'auto', after: 90 } } } } },
       sections: [{
         properties: { page: { margin: { top: 709, right: 851, bottom: 709, left: 1418 } } },
         footers: { default: footer },
         children: [
+          // 2 ô / 2 dòng trống đầu trang theo yêu cầu để Quốc hiệu không bị sát mép trên
+          new Paragraph({ children: [r('')], spacing: { line: 300, lineRule: 'auto', after: 120 } }),
+          new Paragraph({ children: [r('')], spacing: { line: 300, lineRule: 'auto', after: 120 } }),
+
           // Quốc hiệu
-          pc([rb('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', 26)], 0),
+          pc([rb('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', 26)], 0, { spacing: { before: 100, line: 300, lineRule: 'auto' } }),
           pc([ri('Độc lập - Tự do - Hạnh phúc', 24)], 0),
           pc([rb('--------o0o--------', 24)], 0),
 
@@ -5584,11 +5720,10 @@ function saveNewProductAdmin() {
       db.products[idx].category = category;
       db.products[idx].location = location;
 
-      // Cập nhật tồn kho theo giá trị Admin điền
+      // Cập nhật tồn kho và phân bổ chuẩn xác sang vị trí tầng mới
       const currentExp = db.products[idx].exported || 0;
       db.products[idx].initialStock = initialStock + currentExp;
-      db.products[idx].floorStock = db.products[idx].floorStock || {};
-      db.products[idx].floorStock[location || 'Tầng 1'] = initialStock;
+      db.products[idx].floorStock = { [location || 'Tầng 1']: initialStock };
 
       save();
       toast('✅ Đã cập nhật loại hàng hóa: [' + code + '] ' + name, 'ok');
