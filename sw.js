@@ -1,5 +1,5 @@
 // Service Worker cho PWA Kho Hàng Pro - v19.1 (Network-First Strategy)
-const CACHE_NAME = 'kho-pro-cache-v19.4';
+const CACHE_NAME = 'kho-pro-cache-v19.5';
 const ASSETS = [
   './',
   './index.html',

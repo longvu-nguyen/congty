@@ -158,6 +158,10 @@ function reconcileDatabaseIntegrity() {
       delete db.serials[sn];
       return;
     }
+    if (!s.floor) {
+      const sp = getProduct(s.productId);
+      s.floor = (sp && sp.location) ? sp.location : 'Tầng 1';
+    }
     // Đánh dấu serial xuất không có chứng từ nhập là fromQty
     if (s.status === 'exported' && !s.importDocId) {
       s.fromQty = true;
@@ -238,6 +242,10 @@ function reconcileDatabaseIntegrity() {
     // Chuẩn hóa p.exported theo đúng chứng từ thực tế
     p.exported = exportedQty;
 
+    // Đồng bộ chuẩn xác p.location với tầng có hàng thực tế
+    const trueFloor = getPrimaryFloor(p);
+    p.location = trueFloor;
+
     // Đảm bảo floorStock đồng bộ với tồn kho phi serial
     const nonSnStock = Math.max(0, (p.initialStock || 0) - (p.exported || 0));
     if (nonSnStock > 0) {
@@ -247,7 +255,7 @@ function reconcileDatabaseIntegrity() {
         p.floorStock = { [p.location || 'Tầng 1']: nonSnStock };
       } else if (floorSum !== nonSnStock) {
         const diff = nonSnStock - floorSum;
-        const mainFloor = Object.keys(p.floorStock)[0] || p.location || 'Tầng 1';
+        const mainFloor = Object.keys(p.floorStock).find(k => (p.floorStock[k] || 0) > 0) || p.location || 'Tầng 1';
         p.floorStock[mainFloor] = Math.max(0, (p.floorStock[mainFloor] || 0) + diff);
       }
     } else {
@@ -859,6 +867,50 @@ async function handleOcrUpload(inputEl, type, containerId, progressBarId, previe
 //  DASHBOARD
 // ═══════════════════════════════════════════════════════════════
 
+
+function getPrimaryFloor(p) {
+  if (!p) return 'Tầng 1';
+
+  // 1. Kiểm tra tồn kho thực tế trong floorStock (lấy tầng có số lượng nhiều nhất)
+  if (p.floorStock && typeof p.floorStock === 'object') {
+    const fEntries = Object.entries(p.floorStock).filter(([k, v]) => (Number(v) || 0) > 0);
+    if (fEntries.length > 0) {
+      fEntries.sort((a, b) => Number(b[1]) - Number(a[1]));
+      return fEntries[0][0];
+    }
+  }
+
+  // 2. Kiểm tra serials trong kho (status === 'in-stock')
+  if (typeof db !== 'undefined' && db && db.serials) {
+    const sFloors = {};
+    Object.values(db.serials).forEach(s => {
+      if (s.productId === p.id && s.status === 'in-stock' && s.floor) {
+        sFloors[s.floor] = (sFloors[s.floor] || 0) + 1;
+      }
+    });
+    const sEntries = Object.entries(sFloors);
+    if (sEntries.length > 0) {
+      sEntries.sort((a, b) => b[1] - a[1]);
+      return sEntries[0][0];
+    }
+  }
+
+  // 3. Nếu p.location đã được lưu cụ thể và hợp lệ
+  if (p.location && typeof p.location === 'string' && p.location.trim()) {
+    return p.location.trim();
+  }
+
+  // 4. Nếu có ghi chú tầng trong notes
+  const notes = (p.notes || '').toUpperCase();
+  if (notes.includes('4F') || notes.includes('TẦNG 4')) return 'Tầng 4';
+  if (notes.includes('3F') || notes.includes('TẦNG 3')) return 'Tầng 3';
+  if (notes.includes('2F') || notes.includes('TẦNG 2')) return 'Tầng 2';
+  if (notes.includes('1F') || notes.includes('TẦNG 1')) return 'Tầng 1';
+
+  // 5. Mặc định toàn kho công ty là Tầng 1 (tuyệt đối không ép về Tầng 3)
+  return 'Tầng 1';
+}
+
 function enrichProduct(p) {
   if (!p) return {};
   const name = (p.name || '').toUpperCase();
@@ -903,27 +955,7 @@ function enrichProduct(p) {
     }
   }
 
-  let location = p.location || '';
-  if (!location) {
-    if (notes.includes('4F') || notes.includes('TẦNG 4')) {
-      location = 'Tầng 4';
-    } else if (notes.includes('1F') || notes.includes('TẦNG 1')) {
-      location = 'Tầng 1';
-    } else if (notes.includes('2F') || notes.includes('TẦNG 2')) {
-      location = 'Tầng 2';
-    } else if (notes.includes('3F') || notes.includes('TẦNG 3')) {
-      location = 'Tầng 3';
-    } else {
-      if (category === 'Máy in & Máy quét' || category === 'Máy tính & PC') {
-        location = 'Tầng 1';
-      } else if (category === 'Mực in & Vật tư' || category === 'Màn hình') {
-        location = 'Tầng 2';
-      } else {
-        location = 'Tầng 3';
-      }
-    }
-  }
-
+  const location = getPrimaryFloor(p);
   return { ...p, brand, category, location };
 }
 
@@ -1294,9 +1326,17 @@ function renderInventory() {
         <div class="cat-badge mt1" style="font-size:10px">${esc(p.category)}</div>
       </td>
       <td>
-        <span class="b-floor ${floorClass}" onclick="openLocationModal('${esc(p.id)}')" title="Click để thay đổi vị trí tầng">
-          🏢 ${esc(p.location)} ✏️
-        </span>
+        ${(() => {
+          const sByF = getStockByFloor(p.id);
+          const activeF = Object.entries(sByF).filter(([f, q]) => q > 0);
+          let label = '🏢 ' + esc(p.location);
+          let tip = 'Click để thay đổi vị trí tầng';
+          if (activeF.length > 1) {
+            label = '🏢 ' + esc(p.location) + ' (' + activeF.length + ' tầng)';
+            tip = 'Phân bổ: ' + activeF.map(([f, q]) => f + ': ' + q).join(' | ') + ' (Click để đổi tầng)';
+          }
+          return `<span class="b-floor ${floorClass}" onclick="openLocationModal('${esc(p.id)}')" title="${esc(tip)}">${label} ✏️</span>`;
+        })()}
       </td>
       <td><span class="dot dot-ok"></span><span class="cg fw8 fs14">${p.stock}</span></td>
       <td><span class="cr fw7">${p.exported}</span></td>
@@ -1359,13 +1399,18 @@ function openLocationModal(pid) {
   if (totalStockEl) totalStockEl.textContent = `${totalStock} ${p.unit || 'cái'}`;
 
   const floors = getStockByFloor(pid);
+  const currentPrimaryFloor = getPrimaryFloor(rawP);
   const standardFloors = ['Tầng 1', 'Tầng 2', 'Tầng 3', 'Tầng 4'];
-  const allFloorKeys = [...new Set([...standardFloors, ...Object.keys(floors || {}), rawP.location].filter(Boolean))];
+  const allFloorKeys = [...new Set([...standardFloors, ...Object.keys(floors || {}), rawP.location, currentPrimaryFloor].filter(Boolean))];
+  const totalInFloors = Object.values(floors || {}).reduce((a, b) => a + (Number(b) || 0), 0);
 
   const container = document.getElementById('loc-floors-container');
   if (container) {
     container.innerHTML = allFloorKeys.map((fName) => {
-      const currentVal = floors[fName] || (allFloorKeys.length === 1 || rawP.location === fName ? totalStock : 0);
+      let currentVal = Number(floors[fName]) || 0;
+      if (totalInFloors === 0 && currentPrimaryFloor === fName) {
+        currentVal = totalStock;
+      }
       const isCustom = !standardFloors.includes(fName);
       return `
         <div class="loc-floor-row" style="display:flex; align-items:center; gap:8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px;">
@@ -1636,11 +1681,33 @@ function previewSerials() {
 function confirmAddSerial() {
   const lines = document.getElementById('as-input').value.split(/[\n,;\t]+/).map(s => s.trim()).filter(Boolean);
   let added = 0;
-  lines.forEach(sn => { if (!sn || db.serials[sn]) return; db.serials[sn] = { productId: _addSerialPid, status: 'in-stock', addedDate: today(), importDocId: null, exportDocId: null, exportDate: null, exportTo: null, exportReceiver: null }; added++; });
+  const p = getProduct(_addSerialPid);
+  const floor = (p && p.location) ? p.location : 'Tầng 1';
+  lines.forEach(sn => {
+    if (!sn || db.serials[sn]) return;
+    db.serials[sn] = {
+      productId: _addSerialPid,
+      status: 'in-stock',
+      addedDate: today(),
+      importDocId: null,
+      exportDocId: null,
+      exportDate: null,
+      exportTo: null,
+      exportReceiver: null,
+      floor: floor
+    };
+    added++;
+  });
+  if (p) {
+    p.location = floor;
+    p.floorStock = p.floorStock || {};
+    p.floorStock[floor] = (p.floorStock[floor] || 0) + added;
+  }
   save(); closeModal('mo-add-serial');
-  toast(`Đã thêm ${added} serial vào kho`, 'ok');
+  toast(`Đã thêm ${added} serial vào ${floor}`, 'ok');
   if (document.getElementById('page-products')?.classList.contains('active')) renderProducts();
   if (document.getElementById('page-serials')?.classList.contains('active')) renderSerials();
+  if (document.getElementById('page-inventory')?.classList.contains('active')) renderInventory();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1908,18 +1975,39 @@ function submitImport() {
   const docNumber = genDocNum('BBNHAP', db.importDocs);
 
   // Xử lý hàng có serial
-  importItems.filter(i => i.useSerial !== false).forEach(item => item.serials.forEach(sn => {
-    db.serials[sn] = { productId: item.productId, status: 'in-stock', addedDate: date, importDocId: docId, exportDocId: null, exportDate: null, exportTo: null, exportReceiver: null, floor: item.floor || 'Tầng 1' };
-  }));
+  importItems.filter(i => i.useSerial !== false).forEach(item => {
+    const f = item.floor || 'Tầng 1';
+    item.serials.forEach(sn => {
+      db.serials[sn] = {
+        productId: item.productId,
+        status: 'in-stock',
+        addedDate: date,
+        importDocId: docId,
+        exportDocId: null,
+        exportDate: null,
+        exportTo: null,
+        exportReceiver: null,
+        floor: f
+      };
+    });
+    const p = getProduct(item.productId);
+    if (p) {
+      p.location = f;
+      p.floorStock = p.floorStock || {};
+      p.floorStock[f] = (p.floorStock[f] || 0) + item.serials.length;
+    }
+  });
 
   // Xử lý hàng không serial — cộng số lượng vào initialStock
   importItems.filter(i => i.useSerial === false).forEach(item => {
     const p = getProduct(item.productId);
     if (p) {
-      p.initialStock = (p.initialStock || 0) + (Number(item.qty) || 0);
-      p.floorStock = p.floorStock || {};
       const f = item.floor || 'Tầng 1';
-      p.floorStock[f] = (p.floorStock[f] || 0) + (Number(item.qty) || 0);
+      const qty = Number(item.qty) || 0;
+      p.initialStock = (p.initialStock || 0) + qty;
+      p.floorStock = p.floorStock || {};
+      p.floorStock[f] = (p.floorStock[f] || 0) + qty;
+      p.location = f;
     }
   });
 
@@ -5718,12 +5806,19 @@ function saveNewProductAdmin() {
       db.products[idx].unit = unit;
       db.products[idx].brand = brand;
       db.products[idx].category = category;
-      db.products[idx].location = location;
+      db.products[idx].location = location || 'Tầng 1';
 
       // Cập nhật tồn kho và phân bổ chuẩn xác sang vị trí tầng mới
       const currentExp = db.products[idx].exported || 0;
       db.products[idx].initialStock = initialStock + currentExp;
       db.products[idx].floorStock = { [location || 'Tầng 1']: initialStock };
+
+      // Cập nhật tầng cho tất cả serial in-stock của sản phẩm
+      Object.values(db.serials || {}).forEach(s => {
+        if (s.productId === id && s.status === 'in-stock') {
+          s.floor = location || 'Tầng 1';
+        }
+      });
 
       save();
       toast('✅ Đã cập nhật loại hàng hóa: [' + code + '] ' + name, 'ok');
