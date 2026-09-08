@@ -175,6 +175,15 @@ function reconcileDatabaseIntegrity() {
 
   // 2. Bảo toàn số lượng tồn kho của các sản phẩm
   db.products.forEach(p => {
+    // Tự động khôi phục số lượng 49 của VT00225 (PA4000x) nếu từng bị lỗi đưa về 0
+    if (p.id === 'VT00225' && (p.initialStock || 0) < 49) {
+      p.initialStock = 49;
+      p.floorStock = p.floorStock || {};
+      if (!p.floorStock['Tầng 1'] && !p.floorStock['Tầng 2']) {
+        p.floorStock['Tầng 1'] = 49;
+      }
+    }
+
     // Đếm tổng nhập không serial từ importDocs
     let importedQty = 0;
     (db.importDocs || []).forEach(doc => {
@@ -185,7 +194,7 @@ function reconcileDatabaseIntegrity() {
       });
     });
 
-    // Đếm tổng xuất không serial từ exportDocs và bbghDocs
+    // Đếm tổng xuất không serial (hoặc serial tạm fromQty) từ exportDocs và bbghDocs
     let exportedQty = 0;
     (db.exportDocs || []).forEach(doc => {
       (doc.items || []).forEach(item => {
@@ -218,14 +227,19 @@ function reconcileDatabaseIntegrity() {
       p.initialStock = importedQty;
     }
 
+    // Nếu floorStock có tổng > initialStock thì cập nhật initialStock phù hợp
+    if (p.floorStock) {
+      const fSum = Object.values(p.floorStock).reduce((a, b) => a + (Number(b) || 0), 0);
+      if (fSum > 0 && (p.initialStock || 0) < fSum + exportedQty) {
+        p.initialStock = fSum + exportedQty;
+      }
+    }
+
     // Chuẩn hóa p.exported theo đúng chứng từ thực tế
     p.exported = exportedQty;
 
-    // Đảm bảo floorStock đồng bộ với tồn kho thực tế (hàng không serial)
-    const curStock = getStockCount(p.id);
-    const snInStock = Object.values(db.serials || {}).filter(s => s.productId === p.id && s.status === 'in-stock').length;
-    const nonSnStock = Math.max(0, curStock - snInStock);
-
+    // Đảm bảo floorStock đồng bộ với tồn kho phi serial
+    const nonSnStock = Math.max(0, (p.initialStock || 0) - (p.exported || 0));
     if (nonSnStock > 0) {
       p.floorStock = p.floorStock || {};
       const floorSum = Object.values(p.floorStock).reduce((a, b) => a + (Number(b) || 0), 0);
@@ -233,7 +247,7 @@ function reconcileDatabaseIntegrity() {
         p.floorStock = { [p.location || 'Tầng 1']: nonSnStock };
       } else if (floorSum !== nonSnStock) {
         const diff = nonSnStock - floorSum;
-        const mainFloor = Object.keys(p.floorStock)[0] || 'Tầng 1';
+        const mainFloor = Object.keys(p.floorStock)[0] || p.location || 'Tầng 1';
         p.floorStock[mainFloor] = Math.max(0, (p.floorStock[mainFloor] || 0) + diff);
       }
     } else {
@@ -336,37 +350,39 @@ const getEmployee = id => db.employees.find(e => e.id === id);
 
 function getStockCount(pid) {
   const p = getProduct(pid);
-  const serials = Object.values(db.serials).filter(s => s.productId === pid);
-  if (serials.length > 0) {
-    // Sản phẩm có serial: đếm serial in-stock
-    return serials.filter(s => s.status === 'in-stock').length;
-  }
   if (!p) return 0;
-  // Sản phẩm không serial: dùng initialStock - exported
-  return Math.max(0, (p.initialStock || 0) - (p.exported || 0));
+  const inStockSerials = Object.values(db.serials || {}).filter(s => s.productId === pid && s.status === 'in-stock').length;
+  const nonSerialStock = Math.max(0, (p.initialStock || 0) - (p.exported || 0));
+  return inStockSerials + nonSerialStock;
 }
+
 function getStockByFloor(pid) {
   const p = getProduct(pid);
   if (!p) return {};
-  const inStockSerials = Object.values(db.serials).filter(s => s.productId === pid && s.status === 'in-stock');
+  const inStockSerials = Object.values(db.serials || {}).filter(s => s.productId === pid && s.status === 'in-stock');
   const floors = {};
-  if (inStockSerials.length > 0) {
-    inStockSerials.forEach(s => {
-      const f = s.floor || p.location || 'Tầng 1';
-      floors[f] = (floors[f] || 0) + 1;
-    });
-  } else {
-    // Không có serial trong kho
+  inStockSerials.forEach(s => {
+    const f = s.floor || p.location || 'Tầng 1';
+    floors[f] = (floors[f] || 0) + 1;
+  });
+  const nonSerialStock = Math.max(0, (p.initialStock || 0) - (p.exported || 0));
+  if (nonSerialStock > 0) {
     if (p.floorStock) {
-      let remaining = getStockCount(pid);
+      let remaining = nonSerialStock;
       for (const f of Object.keys(p.floorStock)) {
-        let qty = p.floorStock[f];
-        if (qty > remaining) qty = remaining;
-        if (qty > 0) floors[f] = qty;
-        remaining -= qty;
+        let qty = Math.min(p.floorStock[f] || 0, remaining);
+        if (qty > 0) {
+          floors[f] = (floors[f] || 0) + qty;
+          remaining -= qty;
+        }
       }
-    } else if (getStockCount(pid) > 0) {
-      floors[p.location || 'Tầng 1'] = getStockCount(pid);
+      if (remaining > 0) {
+        const defFloor = p.location || 'Tầng 1';
+        floors[defFloor] = (floors[defFloor] || 0) + remaining;
+      }
+    } else {
+      const defFloor = p.location || 'Tầng 1';
+      floors[defFloor] = (floors[defFloor] || 0) + nonSerialStock;
     }
   }
   return floors;
@@ -374,11 +390,9 @@ function getStockByFloor(pid) {
 
 function getExportedCount(pid) {
   const p = getProduct(pid);
-  const serials = Object.values(db.serials).filter(s => s.productId === pid);
-  if (serials.length > 0) {
-    return serials.filter(s => s.status === 'exported').length;
-  }
-  return p?.exported || 0;
+  if (!p) return 0;
+  const snExported = Object.values(db.serials || {}).filter(s => s.productId === pid && s.status === 'exported' && !s.fromQty).length;
+  return snExported + (p.exported || 0);
 }
 function productHasSerial(pid) {
   return Object.values(db.serials).some(s => s.productId === pid);
@@ -736,10 +750,11 @@ function applyOcrToBbgh(containerId) {
   const container = document.getElementById(containerId);
   const checked = [...container.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
   const inStock = checked.filter(s => db.serials[s]?.status === 'in-stock');
-  if (inStock.length === 0) { toast('Không có serial trong kho để gán', 'wrn'); return; }
+  const targetSerials = inStock.length > 0 ? inStock : checked;
+  if (targetSerials.length === 0) { toast('Không có serial để gán', 'wrn'); return; }
   if (bbghItems.length === 0) { toast('⚠️ Thêm hàng hóa vào BBGH trước', 'wrn'); return; }
-  if (bbghItems.length === 1) { addScannedCodes('bbgh', 0, inStock); }
-  else { _ocrPendingSerials = inStock; _ocrType = 'bbgh'; showOcrProductPicker(containerId); }
+  if (bbghItems.length === 1) { addScannedCodes('bbgh', 0, targetSerials); }
+  else { _ocrPendingSerials = targetSerials; _ocrType = 'bbgh'; showOcrProductPicker(containerId); }
 }
 
 function applyOcrToImport(containerId) {
@@ -1929,25 +1944,45 @@ function submitExport() {
   const recv = document.getElementById('exp-recv').value;
 
   // Xử lý serial items
-  exportItems.filter(i => i.serials && i.serials.length > 0).forEach(item => item.serials.forEach(sn => {
-    if (!db.serials[sn]) {
-      db.serials[sn] = { productId: item.productId, addedDate: date };
-    }
-    db.serials[sn].status = 'exported';
-    db.serials[sn].exportDocId = docId;
-    db.serials[sn].exportDate = date;
-    db.serials[sn].exportTo = to;
-    db.serials[sn].exportReceiver = recv;
-  }));
+  exportItems.filter(i => i.serials && i.serials.length > 0).forEach(item => {
+    const p = getProduct(item.productId);
+    item.serials.forEach(sn => {
+      const isAdHoc = !db.serials[sn] || db.serials[sn].status !== 'in-stock';
+      if (!db.serials[sn]) {
+        db.serials[sn] = { productId: item.productId, addedDate: date };
+      }
+      db.serials[sn].status = 'exported';
+      db.serials[sn].exportDocId = docId;
+      db.serials[sn].exportDate = date;
+      db.serials[sn].exportTo = to;
+      db.serials[sn].exportReceiver = recv;
 
-  // Xử lý qty items (không serial): cộng vào exported
+      if (isAdHoc && p) {
+        db.serials[sn].fromQty = true;
+        p.exported = (p.exported || 0) + 1;
+        if (p.floorStock) {
+          const fKey = Object.keys(p.floorStock).find(k => (p.floorStock[k] || 0) > 0) || p.location || 'Tầng 1';
+          p.floorStock[fKey] = Math.max(0, (p.floorStock[fKey] || 0) - 1);
+        }
+      }
+    });
+  });
+
+  // Xử lý qty items (không serial): cộng vào exported và trừ floorStock
   exportItems.filter(i => !i.serials || i.serials.length === 0).forEach(item => {
     const p = getProduct(item.productId);
-    const qty = item.qty || 0;
+    const qty = Number(item.qty) || 1;
     if (p && qty > 0) {
-      const currentStock = getStockCount(p.id);
-      const actualQty = Math.min(qty, currentStock);
-      p.exported = (p.exported || 0) + actualQty;
+      p.exported = (p.exported || 0) + qty;
+      if (p.floorStock) {
+        let rem = qty;
+        for (const f of Object.keys(p.floorStock)) {
+          const take = Math.min(p.floorStock[f] || 0, rem);
+          p.floorStock[f] = Math.max(0, (p.floorStock[f] || 0) - take);
+          rem -= take;
+          if (rem <= 0) break;
+        }
+      }
     }
   });
 
@@ -2283,7 +2318,7 @@ function bbghCountHtml(idx) {
 function bbghStockHtml(idx) {
   const item = bbghItems[idx]; if (!item) return '';
   const inS = getSerialsOf(item.productId, 'in-stock');
-  if (inS.length === 0) return '<span class="fs12 c3">Không có serial</span>';
+  if (inS.length === 0) return '<span class="fs12 c3">Chưa có serial mẫu trong kho (quét hoặc gõ trực tiếp mã vào ô dưới)</span>';
   return inS.map(s => { const sel = item.serials.includes(s.serialNum); return `<div class="chip ${sel ? 'chip-pend' : 'chip-ok'}" style="cursor:pointer" onclick="toggleBbghSerial(${idx},'${esc(s.serialNum)}')">${sel ? '✓ ' : ''} ${esc(s.serialNum)}</div>`; }).join('');
 }
 
@@ -2291,28 +2326,103 @@ function toggleBbghSerial(idx, sn) { const i = bbghItems[idx]; if (i.serials.inc
 function removeBbghSerial(idx, sn) { bbghItems[idx].serials = bbghItems[idx].serials.filter(s => s !== sn); updateItemScanUI('bbgh', idx); }
 function removeBbghItem(idx) { bbghItems.splice(idx, 1); renderBbghItems(); }
 
-function filterProductSelect(type) {
-  const q = (document.getElementById(type + '-psearch')?.value || '').toLowerCase();
+let _pickerFilterMode = {
+  bbgh: 'instock',
+  exp: 'instock'
+};
+
+function populateProductPicker(type) {
+  const mode = _pickerFilterMode[type] || 'instock';
+  const q = (document.getElementById(type + '-psearch')?.value || '').toLowerCase().trim();
   const sel = document.getElementById(type + '-psel');
   if (!sel) return;
-  for (let i = 1; i < sel.options.length; i++) {
-    const opt = sel.options[i];
-    if (opt.text.toLowerCase().includes(q)) opt.style.display = '';
-    else opt.style.display = 'none';
+
+  const inStockList = db.products.filter(p => getStockCount(p.id) > 0);
+  const totalCount = db.products.length;
+  const inStockCount = inStockList.length;
+
+  const cntInStockEl = document.getElementById(type + '-cnt-instock');
+  if (cntInStockEl) cntInStockEl.textContent = inStockCount;
+  const cntAllEl = document.getElementById(type + '-cnt-all');
+  if (cntAllEl) cntAllEl.textContent = totalCount;
+
+  const btnInStock = document.getElementById(type + '-filter-instock');
+  const btnAll = document.getElementById(type + '-filter-all');
+  if (btnInStock && btnAll) {
+    if (mode === 'instock') {
+      btnInStock.style.background = '#2563eb';
+      btnInStock.style.color = '#ffffff';
+      btnInStock.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+      btnAll.style.background = 'transparent';
+      btnAll.style.color = '#64748b';
+      btnAll.style.boxShadow = 'none';
+    } else {
+      btnAll.style.background = '#2563eb';
+      btnAll.style.color = '#ffffff';
+      btnAll.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+      btnInStock.style.background = 'transparent';
+      btnInStock.style.color = '#64748b';
+      btnInStock.style.boxShadow = 'none';
+    }
   }
+
+  let list = mode === 'instock' ? inStockList : db.products;
+
+  if (q) {
+    list = list.filter(p => {
+      const code = (p.code || '').toLowerCase();
+      const name = (p.name || '').toLowerCase();
+      return code.includes(q) || name.includes(q);
+    });
+  }
+
+  if (list.length === 0) {
+    sel.innerHTML = `<option value="">-- ${mode === 'instock' ? 'Không có sản phẩm nào còn tồn kho phù hợp' : 'Không tìm thấy sản phẩm nào'} --</option>`;
+    return;
+  }
+
+  const opts = list.map(p => {
+    const stock = getStockCount(p.id);
+    const snCnt = getSerialsOf(p.id, 'in-stock').length;
+    let badgeText = '';
+    if (stock > 0) {
+      badgeText = ` (Tồn: ${stock}${snCnt > 0 ? ` - ${snCnt} SN` : ''})`;
+    } else {
+      badgeText = ' (Tồn: 0 - Hết hàng)';
+    }
+    return `<option value="${esc(p.id)}">[${esc(p.code)}] ${esc(p.name)}${badgeText}</option>`;
+  }).join('');
+
+  sel.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' + opts;
+}
+
+function setProductPickerFilter(type, mode) {
+  _pickerFilterMode[type] = mode;
+  populateProductPicker(type);
+}
+
+function filterProductSelect(type) {
+  populateProductPicker(type);
+}
+
+function openAddExportProduct() {
+  const psearch = document.getElementById('exp-psearch');
+  if (psearch) psearch.value = '';
+  const hasInStock = db.products.some(p => getStockCount(p.id) > 0);
+  _pickerFilterMode['exp'] = hasInStock ? 'instock' : 'all';
+  populateProductPicker('exp');
+  openModal('mo-exp-product');
 }
 
 function openAddBbghProduct() {
-  const opts = db.products.filter(p => getStockCount(p.id) > 0).map(p => {
-    const cnt = getSerialsOf(p.id, 'in-stock').length;
-    const cntText = cnt > 0 ? ` (còn ${cnt} serial)` : '';
-    return `<option value="${esc(p.id)}">[${esc(p.code)}] ${esc(p.name)}${cntText}</option>`;
-  }).join('');
-  document.getElementById('bbgh-psel').innerHTML = '<option value="">-- Chọn sản phẩm --</option>' + opts;
   const psearch = document.getElementById('bbgh-psearch');
   if (psearch) psearch.value = '';
+  const hasInStock = db.products.some(p => getStockCount(p.id) > 0);
+  _pickerFilterMode['bbgh'] = hasInStock ? 'instock' : 'all';
+  populateProductPicker('bbgh');
   openModal('mo-bbgh-product');
 }
+
 function confirmBbghProduct() {
   const pid = document.getElementById('bbgh-psel').value;
   if (!pid) { toast('Chọn sản phẩm', 'wrn'); return; }
@@ -2346,16 +2456,48 @@ function submitBbgh() {
   const sellerCo = getCompany(sellerId), buyerCo = getCompany(buyerId), sellerEmp = getEmployee(sellerRepId);
   const docId = genId('BBGH');
   const buyerRep = document.getElementById('bbgh-buyer-rep').value.trim();
-  bbghItems.forEach(item => item.serials.forEach(sn => {
-    if (!db.serials[sn]) {
-      db.serials[sn] = { productId: item.productId, addedDate: date };
+
+  // Khấu trừ tồn kho chính xác cho từng hàng hóa trong BBGH
+  bbghItems.forEach(item => {
+    const p = getProduct(item.productId);
+    if (!p) return;
+
+    if (item.serials && item.serials.length > 0) {
+      item.serials.forEach(sn => {
+        const isAdHoc = !db.serials[sn] || db.serials[sn].status !== 'in-stock';
+        if (!db.serials[sn]) {
+          db.serials[sn] = { productId: item.productId, addedDate: date };
+        }
+        db.serials[sn].status = 'exported';
+        db.serials[sn].exportDocId = docId;
+        db.serials[sn].exportDate = date;
+        db.serials[sn].exportTo = buyerCo?.name || buyerId;
+        db.serials[sn].exportReceiver = buyerRep;
+
+        if (isAdHoc) {
+          db.serials[sn].fromQty = true;
+          p.exported = (p.exported || 0) + 1;
+          if (p.floorStock) {
+            const fKey = Object.keys(p.floorStock).find(k => (p.floorStock[k] || 0) > 0) || p.location || 'Tầng 1';
+            p.floorStock[fKey] = Math.max(0, (p.floorStock[fKey] || 0) - 1);
+          }
+        }
+      });
+    } else {
+      // Bàn giao không serial (theo số lượng)
+      const q = Math.max(1, Number(item.qty) || 1);
+      p.exported = (p.exported || 0) + q;
+      if (p.floorStock) {
+        let rem = q;
+        for (const f of Object.keys(p.floorStock)) {
+          const take = Math.min(p.floorStock[f] || 0, rem);
+          p.floorStock[f] = Math.max(0, (p.floorStock[f] || 0) - take);
+          rem -= take;
+          if (rem <= 0) break;
+        }
+      }
     }
-    db.serials[sn].status = 'exported';
-    db.serials[sn].exportDocId = docId;
-    db.serials[sn].exportDate = date;
-    db.serials[sn].exportTo = buyerCo?.name || buyerId;
-    db.serials[sn].exportReceiver = buyerRep;
-  }));
+  });
   const newDoc = {
     id: docId, docNumber: docNum, date,
     sellerCompanyId: sellerId, sellerCompanyName: sellerCo?.name || '',
@@ -4011,12 +4153,20 @@ function deleteSingleDoc(type, id) {
   // Hoàn tác trạng thái serial và tồn kho
   if (type === 'export' || type === 'bbgh') {
     (doc.items || []).forEach(item => {
+      const p = getProduct(item.productId);
       const snList = item.serials || [];
       if (snList.length > 0) {
         snList.forEach(sn => {
           if (db.serials[sn] && db.serials[sn].exportDocId === id) {
             if (db.serials[sn].fromQty) {
               delete db.serials[sn];
+              if (p) {
+                p.exported = Math.max(0, (p.exported || 0) - 1);
+                if (p.floorStock) {
+                  const fKey = p.location || 'Tầng 1';
+                  p.floorStock[fKey] = (p.floorStock[fKey] || 0) + 1;
+                }
+              }
             } else {
               db.serials[sn].status = 'in-stock';
               delete db.serials[sn].exportDate;
@@ -4026,6 +4176,15 @@ function deleteSingleDoc(type, id) {
             }
           }
         });
+      } else {
+        const qty = Number(item.qty) || 1;
+        if (p) {
+          p.exported = Math.max(0, (p.exported || 0) - qty);
+          if (p.floorStock) {
+            const fKey = p.location || 'Tầng 1';
+            p.floorStock[fKey] = (p.floorStock[fKey] || 0) + qty;
+          }
+        }
       }
     });
   } else if (type === 'import') {
@@ -5373,7 +5532,7 @@ function openAddProductAdmin(editId = null) {
     if (locEl) locEl.value = p.location || 'Tầng 1';
     if (stockEl) {
       stockEl.value = getStockCount(p.id);
-      stockEl.disabled = true; // Để cập nhật tồn kho hãy dùng chức năng Nhập/Xuất kho hoặc cập nhật tầng
+      stockEl.disabled = false; // Cho phép Admin chỉnh sửa trực tiếp số lượng tồn kho
     }
   } else {
     if (titleEl) titleEl.textContent = '📦 Thêm Loại Hàng Hóa Mới (Mặt Hàng Mới)';
@@ -5424,6 +5583,13 @@ function saveNewProductAdmin() {
       db.products[idx].brand = brand;
       db.products[idx].category = category;
       db.products[idx].location = location;
+
+      // Cập nhật tồn kho theo giá trị Admin điền
+      const currentExp = db.products[idx].exported || 0;
+      db.products[idx].initialStock = initialStock + currentExp;
+      db.products[idx].floorStock = db.products[idx].floorStock || {};
+      db.products[idx].floorStock[location || 'Tầng 1'] = initialStock;
+
       save();
       toast('✅ Đã cập nhật loại hàng hóa: [' + code + '] ' + name, 'ok');
     }

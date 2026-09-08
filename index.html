@@ -24,7 +24,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=18.9" />
+  <link rel="stylesheet" href="style.css?v=19.0" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -1806,11 +1806,21 @@
           onclick="closeModal('mo-exp-product')">✕</button></div>
       <div class="mo-body">
         <div class="fg">
-          <label class="flabel">Tìm kiếm / Chọn sản phẩm (có serial trong kho)</label>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+            <label class="flabel" style="margin:0; font-weight:700;">Tìm kiếm / Chọn sản phẩm:</label>
+            <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:8px; border:1px solid #cbd5e1;">
+              <button type="button" id="exp-filter-instock" class="btn btn-xs" onclick="setProductPickerFilter('exp', 'instock')" style="font-weight:700; border-radius:6px; padding:3px 8px;">
+                📦 Trong kho (<span id="exp-cnt-instock">0</span>)
+              </button>
+              <button type="button" id="exp-filter-all" class="btn btn-xs" onclick="setProductPickerFilter('exp', 'all')" style="font-weight:700; border-radius:6px; padding:3px 8px;">
+                🌐 Tất cả (<span id="exp-cnt-all">0</span>)
+              </button>
+            </div>
+          </div>
           <input type="text" class="fi mb2" id="exp-psearch" placeholder="🔍 Gõ tên hoặc mã SP để tìm..."
             oninput="filterProductSelect('exp')" />
-          <select class="fs" id="exp-psel" size="10" style="height:auto">
-            <option value="">-- Chọn --</option>
+          <select class="fs" id="exp-psel" size="10" style="height:auto; min-height:190px;">
+            <option value="">-- Chọn sản phẩm --</option>
           </select>
         </div>
       </div>
@@ -1917,11 +1927,21 @@
           onclick="closeModal('mo-bbgh-product')">✕</button></div>
       <div class="mo-body">
         <div class="fg">
-          <label class="flabel">Tìm kiếm / Chọn sản phẩm (có serial trong kho)</label>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+            <label class="flabel" style="margin:0; font-weight:700;">Tìm kiếm / Chọn sản phẩm:</label>
+            <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:8px; border:1px solid #cbd5e1;">
+              <button type="button" id="bbgh-filter-instock" class="btn btn-xs" onclick="setProductPickerFilter('bbgh', 'instock')" style="font-weight:700; border-radius:6px; padding:3px 8px;">
+                📦 Trong kho (<span id="bbgh-cnt-instock">0</span>)
+              </button>
+              <button type="button" id="bbgh-filter-all" class="btn btn-xs" onclick="setProductPickerFilter('bbgh', 'all')" style="font-weight:700; border-radius:6px; padding:3px 8px;">
+                🌐 Tất cả (<span id="bbgh-cnt-all">0</span>)
+              </button>
+            </div>
+          </div>
           <input type="text" class="fi mb2" id="bbgh-psearch" placeholder="🔍 Gõ tên hoặc mã SP để tìm..."
             oninput="filterProductSelect('bbgh')" />
-          <select class="fs" id="bbgh-psel" size="10" style="height:auto">
-            <option value="">-- Chọn --</option>
+          <select class="fs" id="bbgh-psel" size="10" style="height:auto; min-height:190px;">
+            <option value="">-- Chọn sản phẩm --</option>
           </select>
         </div>
       </div>
@@ -2188,8 +2208,8 @@
   </nav>
 
 
-  <script src="data.js?v=18.9"></script>
-  <script src="app.js?v=18.9"></script>
+  <script src="data.js?v=19.0"></script>
+  <script src="app.js?v=19.0"></script>
 </body>
 
 </html>
